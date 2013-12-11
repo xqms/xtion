@@ -223,11 +223,13 @@ static int xtion_disable_streaming(struct xtion_endpoint *endp)
  */
 
 static struct v4l2_file_operations xtion_v4l2_fops = {
-	.owner = THIS_MODULE,
-	.open = v4l2_fh_open,
-	.release = v4l2_fh_release,
-	.mmap = vb2_fop_mmap,
-	.unlocked_ioctl = video_ioctl2
+	.owner            = THIS_MODULE,
+	.open             = v4l2_fh_open,
+	.release          = vb2_fop_release,
+	.mmap             = vb2_fop_mmap,
+	.unlocked_ioctl   = video_ioctl2,
+	.read             = vb2_fop_read,
+	.poll             = vb2_fop_poll
 };
 
 /******************************************************************************/
@@ -349,10 +351,6 @@ static const struct vb2_ops xtion_vb2_ops = {
 	.wait_finish      = vb2_ops_wait_finish
 };
 
-static void xtion_video_release(struct video_device *dev)
-{
-}
-
 
 int xtion_endpoint_init(struct xtion_endpoint* endp, struct xtion* xtion, const struct xtion_endpoint_config *config)
 {
@@ -377,7 +375,7 @@ int xtion_endpoint_init(struct xtion_endpoint* endp, struct xtion* xtion, const 
 	strncpy(endp->video.name, xtion->serial_number, sizeof(endp->video.name));
 	endp->video.v4l2_dev = &xtion->v4l2_dev;
 	endp->video.fops = &xtion_v4l2_fops;
-	endp->video.release = &xtion_video_release;
+	endp->video.release = &video_device_release_empty;
 	endp->video.ioctl_ops = &xtion_ioctls;
 
 	video_set_drvdata(&endp->video, endp);
