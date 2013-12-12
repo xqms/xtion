@@ -1,10 +1,10 @@
 /*
- * USB I/O for ASUS xtion
+ * USB control I/O for ASUS xtion
  *
  * Author: Max Schwarz <max.schwarz@online.de>
  */
 
-#include "xtion_io.h"
+#include "xtion-control.h"
 #include "xtion.h"
 
 #include <linux/usb.h>

@@ -17,8 +17,9 @@
 #include <media/videobuf2-vmalloc.h>
 
 #include "xtion.h"
-#include "xtion_io.h"
-#include "xtion_endpoint.h"
+#include "xtion-control.h"
+#include "xtion-endpoint.h"
+#include "xtion-color.h"
 
 static struct usb_device_id id_table[] = {
 	{ USB_DEVICE(VENDOR_ID, PRODUCT_ID) },
@@ -26,33 +27,36 @@ static struct usb_device_id id_table[] = {
 };
 MODULE_DEVICE_TABLE(usb, id_table);
 
-static void color_start(struct xtion_endpoint* endp)
+/******************************************************************************/
+/*
+ * sysfs attributes
+ */
+
+ssize_t show_id(struct device *dev, struct device_attribute *attr, char *buf)
 {
+	struct usb_interface *intf = container_of(dev, struct usb_interface, dev);
+	struct xtion *xtion = usb_get_intfdata(intf);
+
+	if(!xtion)
+		return -ENODEV;
+
+	snprintf(buf, PAGE_SIZE, "%s\n", xtion->serial_number);
+
+	return strlen(buf)+1;
 }
 
-static void color_data(struct xtion_endpoint* endp, const __u8* data, unsigned int size)
-{
-}
+static DEVICE_ATTR(xtion_id, S_IRUGO, show_id, 0);
 
-static void color_end(struct xtion_endpoint* endp)
-{
-	dev_info(&endp->xtion->dev->dev, "got complete image frame of size %d\n", endp->packet_data_size);
-}
-
-static const struct xtion_endpoint_config color_config = {
-	.addr         = 0x81,
-	.start_id     = 0x8100,
-	.end_id       = 0x8500,
-	.handle_start = color_start,
-	.handle_data  = color_data,
-	.handle_end   = color_end
-};
 
 static int xtion_probe(struct usb_interface *interface, const struct usb_device_id *id)
 {
 	struct usb_device *udev = interface_to_usbdev(interface);
 	struct xtion *xtion = NULL;
 	int ret = -ENOMEM;
+
+	/* Supported by snd-usb-audio */
+	if (interface->altsetting[0].desc.bInterfaceClass == USB_CLASS_AUDIO)
+		return -ENODEV;
 
 	xtion = kzalloc(sizeof(struct xtion), GFP_KERNEL);
 	if(!xtion) {
@@ -61,6 +65,8 @@ static int xtion_probe(struct usb_interface *interface, const struct usb_device_
 	}
 
 	xtion->dev = usb_get_dev(udev);
+
+	mutex_init(&xtion->control_mutex);
 
 	usb_set_intfdata(interface, xtion);
 
@@ -89,6 +95,7 @@ static int xtion_probe(struct usb_interface *interface, const struct usb_device_
 		goto error_release;
 
 	dev_info(&xtion->dev->dev, "ID: %s\n", xtion->serial_number);
+	device_create_file(&interface->dev, &dev_attr_xtion_id);
 
 	/* Setup video device */
 	ret = v4l2_device_register(&interface->dev, &xtion->v4l2_dev);
@@ -96,7 +103,7 @@ static int xtion_probe(struct usb_interface *interface, const struct usb_device_
 		goto error_release;
 
 	/* Setup endpoints */
-	ret = xtion_endpoint_init(&xtion->color, xtion, &color_config);
+	ret = xtion_endpoint_init(&xtion->color, xtion, &xtion_color_endpoint_config);
 	if(ret != 0)
 		goto error_unregister;
 
@@ -105,6 +112,7 @@ static int xtion_probe(struct usb_interface *interface, const struct usb_device_
 error_unregister:
 	v4l2_device_unregister(&xtion->v4l2_dev);
 error_release:
+	device_remove_file(xtion->v4l2_dev.dev, &dev_attr_xtion_id);
 	usb_set_intfdata(interface, NULL);
 	usb_put_dev(xtion->dev);
 error:
@@ -115,6 +123,9 @@ error:
 static void xtion_disconnect(struct usb_interface *interface)
 {
 	struct xtion* xtion = usb_get_intfdata(interface);
+
+	device_remove_file(xtion->v4l2_dev.dev, &dev_attr_xtion_id);
+
 	usb_set_intfdata(interface, NULL);
 
 	xtion_endpoint_release(&xtion->color);
@@ -122,6 +133,8 @@ static void xtion_disconnect(struct usb_interface *interface)
 	v4l2_device_unregister(&xtion->v4l2_dev);
 
 	usb_put_dev(xtion->dev);
+
+	mutex_destroy(&xtion->control_mutex);
 
 	kfree(xtion);
 

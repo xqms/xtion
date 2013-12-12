@@ -27,6 +27,7 @@
 
 struct xtion;
 struct xtion_endpoint;
+struct xtion_buffer;
 
 enum PacketState
 {
@@ -38,13 +39,20 @@ enum PacketState
 
 struct xtion_endpoint_config
 {
+	char name[64];
 	unsigned int addr;
+	unsigned int pix_fmt;
 	__u16 start_id;
 	__u16 end_id;
+	unsigned int pixel_size;
 
 	void (*handle_start)(struct xtion_endpoint* endp);
 	void (*handle_data)(struct xtion_endpoint* endp, const __u8* data, unsigned int size);
 	void (*handle_end)(struct xtion_endpoint* endp);
+
+	int (*enumerate_sizes)(struct xtion_endpoint *endp, struct v4l2_frmsizeenum *framesize);
+	int (*enumerate_rates)(struct xtion_endpoint *endp, struct v4l2_frmivalenum *interval);
+	int (*lookup_size)(struct xtion_endpoint *endp, unsigned int width, unsigned int height);
 };
 
 struct xtion_endpoint
@@ -54,9 +62,12 @@ struct xtion_endpoint
 
 	struct video_device video;
 	struct v4l2_pix_format pix_fmt;
+	__u16 fps;
 
 	/* Image buffers */
 	struct vb2_queue vb2;
+	struct mutex vb2_lock;
+	struct xtion_buffer *active_buffer;
 
 	/* USB buffers */
 	struct list_head avail_bufs;
@@ -86,6 +97,8 @@ struct xtion
 	__u16 message_id;
 
 	struct xtion_endpoint color;
+
+	struct mutex control_mutex;
 };
 
 struct xtion_buffer

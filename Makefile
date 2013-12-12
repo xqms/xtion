@@ -2,7 +2,7 @@
 ifneq ($(KERNELRELEASE),)
 
 obj-m := xtion.o
-xtion-y := xtion_driver.o xtion_io.o xtion_endpoint.o
+xtion-y := xtion-core.o xtion-control.o xtion-endpoint.o xtion-color.o
 
 else
 
