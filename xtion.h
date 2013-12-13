@@ -22,7 +22,7 @@
 
 #define SERIAL_NUMBER_MAX_LEN 31
 
-#define XTION_NUM_URBS 8
+#define XTION_NUM_URBS 64
 #define XTION_URB_SIZE 81920
 
 struct xtion;
@@ -45,6 +45,11 @@ struct xtion_endpoint_config
 	__u16 start_id;
 	__u16 end_id;
 	unsigned int pixel_size;
+
+	__u16 settings_base;
+	__u16 endpoint_register;
+	__u16 endpoint_mode;
+	__u16 image_format;
 
 	void (*handle_start)(struct xtion_endpoint* endp);
 	void (*handle_data)(struct xtion_endpoint* endp, const __u8* data, unsigned int size);
@@ -86,6 +91,16 @@ struct xtion_endpoint
 	unsigned int packet_pad_end;
 };
 
+struct xtion_depth
+{
+	struct xtion_endpoint endp;
+
+	__u8 temp_buffer[4096];
+	__u16 temp_bytes;
+
+	const __u16* lut;
+};
+
 struct xtion
 {
 	struct usb_device* dev;
@@ -97,6 +112,7 @@ struct xtion
 	__u16 message_id;
 
 	struct xtion_endpoint color;
+	struct xtion_depth depth;
 
 	struct mutex control_mutex;
 };

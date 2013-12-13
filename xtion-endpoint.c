@@ -12,7 +12,7 @@
 #include "xtion-control.h"
 
 static const __u16 intervals[] = {
-	25, 30, 60
+	30, 60
 };
 
 /******************************************************************************/
@@ -173,7 +173,7 @@ static int xtion_usb_init(struct xtion_endpoint* endp)
 			goto free_buffers;
 
 		urb->dev = endp->xtion->dev;
-		urb->pipe = usb_rcvbulkpipe(endp->xtion->dev, 0x82);
+		urb->pipe = usb_rcvbulkpipe(endp->xtion->dev, endp->config->addr);
 		urb->transfer_buffer = endp->transfer_buffers[i];
 		urb->transfer_buffer_length = XTION_URB_SIZE;
 		urb->complete = xtion_usb_irq;
@@ -193,6 +193,7 @@ int xtion_enable_streaming(struct xtion_endpoint *endp)
 {
 	int i;
 	int rc;
+	int base;
 	struct xtion *xtion = endp->xtion;
 
 	if(!xtion->dev)
@@ -201,11 +202,12 @@ int xtion_enable_streaming(struct xtion_endpoint *endp)
 	if(mutex_lock_interruptible(&xtion->control_mutex) != 0)
 		return -EAGAIN;
 
-	xtion_set_param(xtion, XTION_P_GENERAL_STREAM0_MODE, XTION_VIDEO_STREAM_OFF);
-	xtion_set_param(xtion, XTION_P_IMAGE_FORMAT, 5); // Uncompressed YUV422
-	xtion_set_param(xtion, XTION_P_IMAGE_RESOLUTION, endp->config->lookup_size(endp, endp->pix_fmt.width, endp->pix_fmt.height)); // VGA
-	xtion_set_param(xtion, XTION_P_IMAGE_FPS, endp->fps);
-	xtion_set_param(xtion, XTION_P_GENERAL_STREAM0_MODE, XTION_VIDEO_STREAM_COLOR);
+	base = endp->config->settings_base;
+	xtion_set_param(xtion, endp->config->endpoint_register, XTION_VIDEO_STREAM_OFF);
+	xtion_set_param(xtion, base + XTION_CHANNEL_P_FORMAT, endp->config->image_format); // Uncompressed YUV422
+	xtion_set_param(xtion, base + XTION_CHANNEL_P_RESOLUTION, endp->config->lookup_size(endp, endp->pix_fmt.width, endp->pix_fmt.height)); // VGA
+	xtion_set_param(xtion, base + XTION_CHANNEL_P_FPS, endp->fps);
+	xtion_set_param(xtion, endp->config->endpoint_register, endp->config->endpoint_mode);
 
 	mutex_unlock(&xtion->control_mutex);
 
@@ -251,7 +253,7 @@ static int xtion_disable_streaming(struct xtion_endpoint *endp)
 		return -EAGAIN;
 	}
 
-	xtion_set_param(endp->xtion, XTION_P_GENERAL_STREAM0_MODE, XTION_VIDEO_STREAM_OFF);
+	xtion_set_param(endp->xtion, endp->config->endpoint_register, XTION_VIDEO_STREAM_OFF);
 
 	mutex_unlock(&endp->xtion->control_mutex);
 
@@ -529,6 +531,21 @@ static const struct vb2_ops xtion_vb2_ops = {
 	.wait_finish      = vb2_ops_wait_finish
 };
 
+/******************************************************************************/
+/*
+ * sysfs attributes
+ */
+
+ssize_t show_endpoint(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct video_device *vdev = container_of(dev, struct video_device, dev);
+	struct xtion_endpoint *endp = container_of(vdev, struct xtion_endpoint, video);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n", endp->config->name)+1;
+}
+
+static DEVICE_ATTR(xtion_endpoint, S_IRUGO, show_endpoint, 0);
+
 
 int xtion_endpoint_init(struct xtion_endpoint* endp, struct xtion* xtion, const struct xtion_endpoint_config *config)
 {
@@ -588,6 +605,8 @@ int xtion_endpoint_init(struct xtion_endpoint* endp, struct xtion* xtion, const 
 	if(ret != 0)
 		goto error_release_queue;
 
+	device_create_file(&endp->video.dev, &dev_attr_xtion_endpoint);
+
 	ret = xtion_usb_init(endp);
 	if(ret != 0)
 		goto error_unregister;
@@ -601,6 +620,7 @@ int xtion_endpoint_init(struct xtion_endpoint* endp, struct xtion* xtion, const 
 error_unregister:
 	video_unregister_device(&endp->video);
 error_release_queue:
+	device_remove_file(&endp->video.dev, &dev_attr_xtion_endpoint);
 	vb2_queue_release(&endp->vb2);
 	return ret;
 }
@@ -608,6 +628,7 @@ error_release_queue:
 void xtion_endpoint_release(struct xtion_endpoint* endp)
 {
 	xtion_usb_release(endp);
+	device_remove_file(&endp->video.dev, &dev_attr_xtion_endpoint);
 	video_unregister_device(&endp->video);
 	vb2_queue_release(&endp->vb2);
 }

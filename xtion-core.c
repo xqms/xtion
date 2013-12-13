@@ -20,6 +20,7 @@
 #include "xtion-control.h"
 #include "xtion-endpoint.h"
 #include "xtion-color.h"
+#include "xtion-depth.h"
 
 static struct usb_device_id id_table[] = {
 	{ USB_DEVICE(VENDOR_ID, PRODUCT_ID) },
@@ -107,8 +108,13 @@ static int xtion_probe(struct usb_interface *interface, const struct usb_device_
 	if(ret != 0)
 		goto error_unregister;
 
-	return 0;
+	ret = xtion_depth_init(&xtion->depth, xtion);
+	if(ret != 0)
+		goto error_release_color;
 
+	return 0;
+error_release_color:
+	xtion_endpoint_release(&xtion->color);
 error_unregister:
 	v4l2_device_unregister(&xtion->v4l2_dev);
 error_release:
@@ -128,6 +134,7 @@ static void xtion_disconnect(struct usb_interface *interface)
 
 	usb_set_intfdata(interface, NULL);
 
+	xtion_depth_release(&xtion->depth);
 	xtion_endpoint_release(&xtion->color);
 
 	v4l2_device_unregister(&xtion->v4l2_dev);

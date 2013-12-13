@@ -112,11 +112,17 @@ static int color_lookup_size(struct xtion_endpoint *endp, unsigned int width, un
 
 const struct xtion_endpoint_config xtion_color_endpoint_config = {
 	.name            = "color",
-	.addr            = 0x81,
+	.addr            = 0x82,
 	.start_id        = 0x8100,
 	.end_id          = 0x8500,
 	.pix_fmt         = V4L2_PIX_FMT_UYVY,
 	.pixel_size      = 2,
+
+	.settings_base   = XTION_P_IMAGE_BASE,
+	.endpoint_register = XTION_P_GENERAL_STREAM0_MODE,
+	.endpoint_mode     = XTION_VIDEO_STREAM_COLOR,
+	.image_format     = XTION_IMG_FORMAT_UNC_YUV422,
+
 	.handle_start    = color_start,
 	.handle_data     = color_data,
 	.handle_end      = color_end,

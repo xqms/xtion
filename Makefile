@@ -2,7 +2,7 @@
 ifneq ($(KERNELRELEASE),)
 
 obj-m := xtion.o
-xtion-y := xtion-core.o xtion-control.o xtion-endpoint.o xtion-color.o
+xtion-y := xtion-core.o xtion-control.o xtion-endpoint.o xtion-color.o xtion-depth.o xtion-depth-accel.o
 
 else
 
