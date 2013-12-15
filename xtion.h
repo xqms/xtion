@@ -22,8 +22,11 @@
 
 #define SERIAL_NUMBER_MAX_LEN 31
 
-#define XTION_NUM_URBS 64
-#define XTION_URB_SIZE 81920
+#define XTION_NUM_URBS 32
+#define XTION_URB_SIZE (8 * 20480)
+// #define XTION_URB_SIZE 81920
+
+#define XTION_FLAG_ISOC (1 << 0)
 
 struct xtion;
 struct xtion_endpoint;
@@ -50,6 +53,8 @@ struct xtion_endpoint_config
 	__u16 endpoint_register;
 	__u16 endpoint_mode;
 	__u16 image_format;
+
+	unsigned int bulk_urb_size;
 
 	void (*handle_start)(struct xtion_endpoint* endp);
 	void (*handle_data)(struct xtion_endpoint* endp, const __u8* data, unsigned int size);
@@ -101,6 +106,20 @@ struct xtion_depth
 	const __u16* lut;
 };
 
+struct xtion_color
+{
+	struct xtion_endpoint endp;
+
+	__u32 current_channel;
+	__u32 current_channel_idx;
+	__u32 last_full_values[3];
+
+	__u32 stashed_nibble;
+	__u32 open_nibbles;
+
+	__u32 line_count;
+};
+
 struct xtion
 {
 	struct usb_device* dev;
@@ -109,9 +128,11 @@ struct xtion
 	char serial_number[SERIAL_NUMBER_MAX_LEN+1];
 	struct v4l2_device v4l2_dev;
 
+	unsigned int flags;
+
 	__u16 message_id;
 
-	struct xtion_endpoint color;
+	struct xtion_color color;
 	struct xtion_depth depth;
 
 	struct mutex control_mutex;

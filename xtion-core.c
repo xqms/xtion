@@ -55,6 +55,8 @@ static int xtion_probe(struct usb_interface *interface, const struct usb_device_
 	struct xtion *xtion = NULL;
 	int ret = -ENOMEM;
 
+	msleep(1000);
+
 	/* Supported by snd-usb-audio */
 	if (interface->altsetting[0].desc.bInterfaceClass == USB_CLASS_AUDIO)
 		return -ENODEV;
@@ -66,10 +68,20 @@ static int xtion_probe(struct usb_interface *interface, const struct usb_device_
 	}
 
 	xtion->dev = usb_get_dev(udev);
+	xtion->flags = 0;
 
 	mutex_init(&xtion->control_mutex);
 
 	usb_set_intfdata(interface, xtion);
+
+	/* Switch to alternate setting 1 for isochronous transfers */
+	if(xtion->flags & XTION_FLAG_ISOC) {
+		ret = usb_set_interface(udev, 0, 1);
+		if(ret != 0) {
+			dev_err(&interface->dev, "Could not switch to isochronous alternate setting: %d", ret);
+			goto error_release;
+		}
+	}
 
 	ret = xtion_read_version(xtion);
 	if(ret != 0)
@@ -104,7 +116,7 @@ static int xtion_probe(struct usb_interface *interface, const struct usb_device_
 		goto error_release;
 
 	/* Setup endpoints */
-	ret = xtion_endpoint_init(&xtion->color, xtion, &xtion_color_endpoint_config);
+	ret = xtion_color_init(&xtion->color, xtion);
 	if(ret != 0)
 		goto error_unregister;
 
@@ -114,11 +126,11 @@ static int xtion_probe(struct usb_interface *interface, const struct usb_device_
 
 	return 0;
 error_release_color:
-	xtion_endpoint_release(&xtion->color);
+	xtion_color_release(&xtion->color);
 error_unregister:
 	v4l2_device_unregister(&xtion->v4l2_dev);
 error_release:
-	device_remove_file(xtion->v4l2_dev.dev, &dev_attr_xtion_id);
+	device_remove_file(&udev->dev, &dev_attr_xtion_id);
 	usb_set_intfdata(interface, NULL);
 	usb_put_dev(xtion->dev);
 error:
@@ -135,7 +147,7 @@ static void xtion_disconnect(struct usb_interface *interface)
 	usb_set_intfdata(interface, NULL);
 
 	xtion_depth_release(&xtion->depth);
-	xtion_endpoint_release(&xtion->color);
+	xtion_color_release(&xtion->color);
 
 	v4l2_device_unregister(&xtion->v4l2_dev);
 

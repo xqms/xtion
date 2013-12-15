@@ -7,6 +7,7 @@
 
 #include "xtion.h"
 
-extern const struct xtion_endpoint_config xtion_color_endpoint_config;
+int xtion_color_init(struct xtion_color *color, struct xtion *xtion);
+void xtion_color_release(struct xtion_color *color);
 
 #endif

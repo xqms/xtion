@@ -16,5 +16,6 @@ int xtion_read_version(struct xtion* xtion);
 int xtion_read_fixed_params(struct xtion* xtion);
 int xtion_read_serial_number(struct xtion *xtion);
 int xtion_set_param(struct xtion *xtion, __u16 parameter, __u16 value);
+int xtion_reset(struct xtion *xtion);
 
 #endif

@@ -39,10 +39,12 @@ int xtion_control(struct xtion* xtion, __u8 *src, __u16 size, __u8 *dst, __u16 *
 	if(!dst)
 		return 0;
 
+//	msleep(200);
+
 	for(tries = 0; tries < 10; ++tries) {
 		ret = usb_control_msg(
 			xtion->dev,
-			usb_sndctrlpipe(xtion->dev, 0),
+			usb_rcvctrlpipe(xtion->dev, 0),
 			0,
 			USB_TYPE_VENDOR | USB_DIR_IN | USB_RECIP_DEVICE,
 			0,
@@ -51,7 +53,7 @@ int xtion_control(struct xtion* xtion, __u8 *src, __u16 size, __u8 *dst, __u16 *
 			*dst_size,
 			500
 		);
-
+		
 		if(ret < 0) {
 			dev_err(&xtion->dev->dev, "Could not read USB control response: %d", ret);
 			return ret;
@@ -72,7 +74,8 @@ int xtion_control(struct xtion* xtion, __u8 *src, __u16 size, __u8 *dst, __u16 *
 
 int xtion_read_version(struct xtion* xtion)
 {
-	__u8 response_buffer[sizeof(struct XtionReplyHeader) + sizeof(struct XtionVersion)];
+	//__u8 response_buffer[sizeof(struct XtionReplyHeader) + sizeof(struct XtionVersion)];
+	__u8 response_buffer[512];
 	__u16 response_size = sizeof(response_buffer);
 	struct XtionHeader header;
 	int ret;
@@ -209,5 +212,27 @@ int xtion_set_param(struct xtion *xtion, __u16 parameter, __u16 value)
 
 	dev_info(&xtion->dev->dev, "changed param %d to %d\n", parameter, value);
 
+	return 0;
+}
+
+int xtion_reset(struct xtion *xtion)
+{
+	struct XtionSetModeRequest packet;
+	__u8 response_buffer[256];
+	__u16 response_size = sizeof(response_buffer);
+	int rc;
+	
+	packet.header.magic = XTION_MAGIC_HOST;
+	packet.header.opcode = XTION_OPCODE_SET_MODE;
+	packet.header.size = 4;
+	
+	packet.mode = 3;
+	
+	rc = xtion_control(xtion, (__u8*)&packet, sizeof(packet), response_buffer, &response_size);
+	if(rc < 0) {
+		dev_err(&xtion->dev->dev, "Could not set mode: %d\n", rc);
+		return rc;
+	}
+	
 	return 0;
 }

@@ -75,6 +75,7 @@ static void xtion_usb_process(struct xtion_endpoint *endp, const __u8 *data, uns
 				}  else {
 					/* continuation, check packet ID */
 					if(endp->packet_header.packetID != endp->packet_id + 1) {
+						dev_warn(&endp->xtion->dev->dev, "Missed packets: %d -> %d\n", endp->packet_id, endp->packet_header.packetID);
 						endp->packet_corrupt = 1;
 					}
 
@@ -103,14 +104,63 @@ static void xtion_usb_process(struct xtion_endpoint *endp, const __u8 *data, uns
 	}
 }
 
-static void xtion_usb_irq(struct urb *urb)
+static void xtion_usb_irq_isoc(struct urb *urb)
 {
 	struct xtion_endpoint *endp = urb->context;
 	int rc;
+	int i;
+	int status;
+	unsigned int size;
+	__u8 *p;
 
-	if(WARN_ON(!endp)) {
+	switch(urb->status)
+	{
+	case 0:
+		break;
+	case -ECONNRESET:
+	case -ENOENT:
+	case -ESHUTDOWN:
+		return;
+	default:
+		dev_err(&endp->xtion->dev->dev, "Unknown URB status %d\n", urb->status);
 		return;
 	}
+
+	/* process data */
+	for(i = 0; i < urb->number_of_packets; ++i) {
+		status = urb->iso_frame_desc[i].status;
+		if(status < 0 && status != -EPROTO) {
+			if(status == -EPROTO)
+				continue;
+
+			dev_err(&endp->xtion->dev->dev, "Unknown packet status: %d\n", status);
+			continue;
+		}
+
+		p = urb->transfer_buffer + urb->iso_frame_desc[i].offset;
+		size = urb->iso_frame_desc[i].actual_length;
+
+		xtion_usb_process(endp, p, size);
+	}
+
+	/* Reset urb buffers */
+	for (i = 0; i < urb->number_of_packets; i++) {
+		urb->iso_frame_desc[i].status = 0;
+		urb->iso_frame_desc[i].actual_length = 0;
+	}
+
+	urb->transfer_flags = 0;
+	urb->start_frame = usb_get_current_frame_number(endp->xtion->dev) + 1024;
+
+	rc = usb_submit_urb(urb, GFP_ATOMIC);
+	if(rc != 0)
+		dev_err(&endp->xtion->dev->dev, "URB re-submit failed with code %d\n", rc);
+}
+
+static void xtion_usb_irq_bulk(struct urb *urb)
+{
+	struct xtion_endpoint *endp = urb->context;
+	int rc;
 
 	switch(urb->status)
 	{
@@ -136,33 +186,65 @@ static void xtion_usb_irq(struct urb *urb)
 static void xtion_usb_release(struct xtion_endpoint *endp)
 {
 	int i;
-	for(i = 0; i < XTION_NUM_URBS; ++i)
-	{
-		if(endp->transfer_buffers[i])
-		{
+	for(i = 0; i < XTION_NUM_URBS; ++i) {
+		if(endp->transfer_buffers[i]) {
 			kfree(endp->transfer_buffers[i]);
 			endp->transfer_buffers[i] = 0;
 		}
 
-		if(endp->urbs[i])
-		{
+		if(endp->urbs[i]) {
 			usb_free_urb(endp->urbs[i]);
 			endp->urbs[i] = 0;
 		}
 	}
 }
 
+/*
+ * Compute the maximum number of bytes per interval for an endpoint.
+ */
+static unsigned int endpoint_max_bpi(struct usb_device *dev, struct usb_host_endpoint *ep)
+{
+	u16 psize;
+
+	switch (dev->speed) {
+	case USB_SPEED_SUPER:
+		return ep->ss_ep_comp.wBytesPerInterval;
+	case USB_SPEED_HIGH:
+		psize = usb_endpoint_maxp(&ep->desc);
+		return (psize & 0x07ff) * (1 + ((psize >> 11) & 3));
+	default:
+		psize = usb_endpoint_maxp(&ep->desc);
+		return psize & 0x07ff;
+	}
+}
+
 static int xtion_usb_init(struct xtion_endpoint* endp)
 {
 	struct urb *urb;
-	int i;
+	int pipe;
+	struct usb_host_endpoint *usb_endp;
+	unsigned int psize;
+	int i, j;
+	unsigned int num_isoc_packets;
+
+	if(endp->xtion->flags & XTION_FLAG_ISOC) {
+		pipe = usb_rcvisocpipe(endp->xtion->dev, endp->config->addr);
+		num_isoc_packets = 32;
+	}
+	else {
+		pipe = usb_rcvbulkpipe(endp->xtion->dev, endp->config->addr);
+		num_isoc_packets = 0;
+	}
+
+	usb_endp = usb_pipe_endpoint(endp->xtion->dev, pipe);
+	psize = endpoint_max_bpi(endp->xtion->dev, usb_endp);
 
 	memset(endp->transfer_buffers, 0, sizeof(endp->transfer_buffers));
 	memset(endp->urbs, 0, sizeof(endp->transfer_buffers));
 
 	for(i = 0; i < XTION_NUM_URBS; ++i)
 	{
-		urb = usb_alloc_urb(0, GFP_KERNEL);
+		urb = usb_alloc_urb(num_isoc_packets, GFP_KERNEL);
 		if(!urb)
 			return -ENOMEM;
 
@@ -173,14 +255,29 @@ static int xtion_usb_init(struct xtion_endpoint* endp)
 			goto free_buffers;
 
 		urb->dev = endp->xtion->dev;
-		urb->pipe = usb_rcvbulkpipe(endp->xtion->dev, endp->config->addr);
+		urb->pipe = pipe;
 		urb->transfer_buffer = endp->transfer_buffers[i];
-		urb->transfer_buffer_length = XTION_URB_SIZE;
-		urb->complete = xtion_usb_irq;
 		urb->context = endp;
-		urb->interval = 0;
 		urb->start_frame = 0;
-		urb->number_of_packets = 0;
+		urb->number_of_packets = num_isoc_packets;
+
+		if(endp->xtion->flags & XTION_FLAG_ISOC) {
+			urb->transfer_flags = URB_ISO_ASAP;
+			urb->complete = xtion_usb_irq_isoc;
+			urb->interval = 1;
+			urb->transfer_buffer_length = XTION_URB_SIZE;
+		}
+		else {
+			urb->transfer_flags = 0;
+			urb->complete = xtion_usb_irq_bulk;
+			urb->interval = 0;
+			urb->transfer_buffer_length = endp->config->bulk_urb_size;
+		}
+
+		for(j = 0; j < urb->number_of_packets; ++j) {
+			urb->iso_frame_desc[j].offset = j * psize;
+			urb->iso_frame_desc[j].length = psize;
+		}
 	}
 
 	return 0;

@@ -12,6 +12,7 @@
 
 #define XTION_OPCODE_GET_VERSION 0
 #define XTION_OPCODE_SET_PARAM 3
+#define XTION_OPCODE_SET_MODE 6
 #define XTION_OPCODE_GET_FIXED_PARAMS 4
 #define XTION_OPCODE_GET_SERIAL_NUMBER 37
 
@@ -147,6 +148,12 @@ struct XtionSetParamRequest
 	struct XtionHeader header;
 	__u16 param;
 	__u16 value;
+} __attribute__((packed));
+
+struct XtionSetModeRequest
+{
+	struct XtionHeader header;
+	__u16 mode;
 } __attribute__((packed));
 
 #endif

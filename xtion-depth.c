@@ -33,6 +33,8 @@ static void depth_start(struct xtion_endpoint* endp)
 	unsigned long flags = 0;
 	__u8 *vaddr;
 
+	dev_info(&endp->xtion->dev->dev, "depth_start\n");
+
 	if(!endp->active_buffer) {
 		/* Find free buffer */
 		spin_lock_irqsave(&endp->buf_lock, flags);
@@ -88,6 +90,8 @@ static void depth_data(struct xtion_endpoint* endp, const __u8* data, unsigned i
 		return;
 	}
 
+// 	dev_info(&endp->xtion->dev->dev, "depth_data\n");
+
 	if(depth->temp_bytes != 0) {
 		/* Process leftover data from the last packet */
 		bytes = min_t(size_t, size, INPUT_ELEMENT_SIZE - depth->temp_bytes);
@@ -135,6 +139,8 @@ static void depth_end(struct xtion_endpoint *endp)
 	if(!endp->active_buffer)
 		return;
 
+	dev_info(&endp->xtion->dev->dev, "depth_end\n");
+
 	endp->active_buffer->vb.v4l2_buf.bytesused = endp->active_buffer->pos;
 
 	vb2_set_plane_payload(&endp->active_buffer->vb, 0, endp->active_buffer->pos);
@@ -172,6 +178,7 @@ static const struct xtion_endpoint_config xtion_depth_endpoint_config = {
 	.end_id          = 0x7500,
 	.pix_fmt         = v4l2_fourcc('Y', '1', '1', ' '), /* 11-bit greyscale */
 	.pixel_size      = 2,
+	.bulk_urb_size   = 20480 / 4,
 
 	.settings_base   = XTION_P_DEPTH_BASE,
 	.endpoint_register = XTION_P_GENERAL_STREAM1_MODE,
