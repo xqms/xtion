@@ -1,5 +1,5 @@
-Proof-of-Concept ASUS Xtion PRO LIVE kernel driver
-==================================================
+Proof-of-Concept ASUS Xtion kernel driver
+=========================================
 
 I wanted to have a low-overhead video4linux driver for use with the
 ASUS Xtion PRO LIVE structured light camera.
@@ -14,7 +14,8 @@ Requirements:
 After you load the driver, it creates two video devices for your camera
 (color and depth). You can use udev rules to name them sensibly:
 
- # Rules for the xtion kernel driver
- SUBSYSTEM=="video4linux", ATTR{xtion_endpoint}=="depth", ATTRS{xtion_id}=="*", SYMLINK+="xtion_$attr{xtion_id}_depth"
- SUBSYSTEM=="video4linux", ATTR{xtion_endpoint}=="color", ATTRS{xtion_id}=="*", SYMLINK+="xtion_$attr{xtion_id}_color"
-
+<pre>
+# Rules for the xtion kernel driver
+SUBSYSTEM=="video4linux", ATTR{xtion_endpoint}=="depth", ATTRS{xtion_id}=="*", SYMLINK+="xtion_$attr{xtion_id}_depth"
+SUBSYSTEM=="video4linux", ATTR{xtion_endpoint}=="color", ATTRS{xtion_id}=="*", SYMLINK+="xtion_$attr{xtion_id}_color"
+</pre>
