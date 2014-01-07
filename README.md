@@ -1,5 +1,5 @@
-Proof-of-Concept ASUS Xtion kernel driver
-=========================================
+PoC ASUS Xtion kernel driver
+============================
 
 I wanted to have a low-overhead video4linux driver for use with the
 ASUS Xtion PRO LIVE structured light camera.
