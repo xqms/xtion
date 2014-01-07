@@ -71,10 +71,16 @@ static void xtion_usb_process(struct xtion_endpoint *endp, const __u8 *data, uns
 					endp->packet_pad_start = endp->packet_header.timestamp >> 16;
 					endp->packet_pad_end = endp->packet_header.timestamp & 0xFFFF;
 
+					/* save timestamp */
+					v4l2_get_timestamp(&endp->packet_system_timestamp);
+
+					/* new frame id */
+					endp->frame_id++;
+
 					endp->config->handle_start(endp);
 				}  else {
 					/* continuation, check packet ID */
-					if(endp->packet_header.packetID != endp->packet_id + 1) {
+					if(endp->packet_header.packetID != ((endp->packet_id + 1) & 0xFFFF)) {
 						dev_warn(&endp->xtion->dev->dev, "Missed packets: %d -> %d\n", endp->packet_id, endp->packet_header.packetID);
 						endp->packet_corrupt = 1;
 					}
@@ -94,6 +100,7 @@ static void xtion_usb_process(struct xtion_endpoint *endp, const __u8 *data, uns
 
 			if(endp->packet_off == endp->packet_data_size) {
 				if(endp->packet_header.type == endp->config->end_id && !endp->packet_corrupt) {
+					endp->packet_timestamp = endp->packet_header.timestamp;
 					endp->config->handle_end(endp);
 				}
 
@@ -300,11 +307,18 @@ int xtion_enable_streaming(struct xtion_endpoint *endp)
 		return -EAGAIN;
 
 	base = endp->config->settings_base;
+
+	xtion_set_param(xtion, XTION_P_FRAME_SYNC, 0);
+	xtion_set_param(xtion, XTION_P_REGISTRATION, 0);
+
 	xtion_set_param(xtion, endp->config->endpoint_register, XTION_VIDEO_STREAM_OFF);
 	xtion_set_param(xtion, base + XTION_CHANNEL_P_FORMAT, endp->config->image_format); // Uncompressed YUV422
 	xtion_set_param(xtion, base + XTION_CHANNEL_P_RESOLUTION, endp->config->lookup_size(endp, endp->pix_fmt.width, endp->pix_fmt.height)); // VGA
 	xtion_set_param(xtion, base + XTION_CHANNEL_P_FPS, endp->fps);
 	xtion_set_param(xtion, endp->config->endpoint_register, endp->config->endpoint_mode);
+
+	xtion_set_param(xtion, XTION_P_FRAME_SYNC, 1);
+	xtion_set_param(xtion, XTION_P_REGISTRATION, 1);
 
 	mutex_unlock(&xtion->control_mutex);
 
@@ -320,7 +334,7 @@ int xtion_enable_streaming(struct xtion_endpoint *endp)
 	return 0;
 }
 
-static int xtion_disable_streaming(struct xtion_endpoint *endp)
+static void xtion_kill_urbs(struct xtion_endpoint *endp)
 {
 	int i;
 	unsigned long flags;
@@ -344,15 +358,22 @@ static int xtion_disable_streaming(struct xtion_endpoint *endp)
 	/* It's important to clear current buffer */
 	endp->active_buffer = 0;
 	spin_unlock_irqrestore(&endp->buf_lock, flags);
+}
+
+static int xtion_disable_streaming(struct xtion_endpoint *endp)
+{
+	/* Kill all submitted urbs */
+	xtion_kill_urbs(endp);
 
 	/* And disable streaming in the hardware */
-	if(mutex_lock_interruptible(&endp->xtion->control_mutex) != 0) {
-		return -EAGAIN;
-	}
+// 	if(mutex_lock_interruptible(&endp->xtion->control_mutex) != 0) {
+// 		return -EAGAIN;
+// 	}
+//
+// 	xtion_set_param(endp->xtion, XTION_P_FRAME_SYNC, 0);
+// 	xtion_set_param(endp->xtion, endp->config->endpoint_register, XTION_VIDEO_STREAM_OFF);
 
-	xtion_set_param(endp->xtion, endp->config->endpoint_register, XTION_VIDEO_STREAM_OFF);
-
-	mutex_unlock(&endp->xtion->control_mutex);
+// 	mutex_unlock(&endp->xtion->control_mutex);
 
 	return 0;
 }
@@ -585,6 +606,28 @@ static int xtion_vb2_setup(struct vb2_queue *q, const struct v4l2_format *format
 	return 0;
 }
 
+static int xtion_vb2_prepare(struct vb2_buffer *vb)
+{
+	struct xtion_endpoint *endp = vb2_get_drv_priv(vb->vb2_queue);
+
+	/* If we are already disconnected, do not allow queueing a new buffer */
+	if(!endp->xtion->dev)
+		return -ENODEV;
+
+	return 0;
+}
+
+static int xtion_vb2_finish(struct vb2_buffer *vb)
+{
+	struct xtion_endpoint *endp = vb2_get_drv_priv(vb->vb2_queue);
+	struct xtion_buffer *buf = container_of(vb, struct xtion_buffer, vb);
+
+	if(!endp->config->uncompress)
+		return 0;
+
+	return endp->config->uncompress(endp, buf);
+}
+
 static void xtion_vb2_queue(struct vb2_buffer *vb)
 {
 	struct xtion_endpoint *endp = vb2_get_drv_priv(vb->vb2_queue);
@@ -592,16 +635,15 @@ static void xtion_vb2_queue(struct vb2_buffer *vb)
 	struct xtion_buffer *buf = container_of(vb, struct xtion_buffer, vb);
 	unsigned long flags;
 
-	spin_lock_irqsave(&endp->buf_lock, flags);
-
 	if(!xtion->dev) {
 		vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
-	} else {
-		buf->pos = 0;
-
-		list_add_tail(&buf->list, &endp->avail_bufs);
+		return;
 	}
 
+	buf->pos = 0;
+
+	spin_lock_irqsave(&endp->buf_lock, flags);
+	list_add_tail(&buf->list, &endp->avail_bufs);
 	spin_unlock_irqrestore(&endp->buf_lock, flags);
 }
 
@@ -622,6 +664,8 @@ static int xtion_vb2_stop_streaming(struct vb2_queue *q)
 static const struct vb2_ops xtion_vb2_ops = {
 	.queue_setup      = xtion_vb2_setup,
 	.buf_queue        = xtion_vb2_queue,
+	.buf_prepare      = xtion_vb2_prepare,
+	.buf_finish       = xtion_vb2_finish,
 	.start_streaming  = xtion_vb2_start_streaming,
 	.stop_streaming   = xtion_vb2_stop_streaming,
 	.wait_prepare     = vb2_ops_wait_prepare,
@@ -651,6 +695,7 @@ int xtion_endpoint_init(struct xtion_endpoint* endp, struct xtion* xtion, const 
 
 	endp->xtion = xtion;
 	endp->config = config;
+	endp->frame_id = 0;
 
 	/* Default video mode */
 	pix_format = &endp->pix_fmt;
@@ -670,7 +715,7 @@ int xtion_endpoint_init(struct xtion_endpoint* endp, struct xtion* xtion, const 
 	endp->vb2.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	endp->vb2.io_modes = VB2_READ | VB2_MMAP | VB2_USERPTR;
 	endp->vb2.drv_priv = endp;
-	endp->vb2.buf_struct_size = sizeof(struct xtion_buffer);
+	endp->vb2.buf_struct_size = config->buffer_size;
 	endp->vb2.ops = &xtion_vb2_ops;
 	endp->vb2.mem_ops = &vb2_vmalloc_memops;
 	endp->vb2.timestamp_type = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
@@ -687,6 +732,7 @@ int xtion_endpoint_init(struct xtion_endpoint* endp, struct xtion* xtion, const 
 		xtion->serial_number, endp->config->name
 	);
 	endp->video.v4l2_dev = &xtion->v4l2_dev;
+	endp->video.lock = &xtion->control_mutex;
 	endp->video.fops = &xtion_v4l2_fops;
 	endp->video.release = &video_device_release_empty;
 	endp->video.ioctl_ops = &xtion_ioctls;
@@ -728,4 +774,31 @@ void xtion_endpoint_release(struct xtion_endpoint* endp)
 	device_remove_file(&endp->video.dev, &dev_attr_xtion_endpoint);
 	video_unregister_device(&endp->video);
 	vb2_queue_release(&endp->vb2);
+}
+
+void xtion_endpoint_disconnect(struct xtion_endpoint* endp)
+{
+	xtion_kill_urbs(endp);
+}
+
+/******************************************************************************/
+/*
+ * Endpoint implementation API
+ */
+
+struct xtion_buffer* xtion_endpoint_get_next_buf(struct xtion_endpoint* endp)
+{
+	unsigned long flags = 0;
+	struct xtion_buffer *buf = NULL;
+
+	spin_lock_irqsave(&endp->buf_lock, flags);
+	if(list_empty(&endp->avail_bufs))
+		goto leave;
+
+	buf = list_entry(endp->avail_bufs.next, struct xtion_buffer, list);
+	list_del(&buf->list);
+
+leave:
+	spin_unlock_irqrestore(&endp->buf_lock, flags);
+	return buf;
 }

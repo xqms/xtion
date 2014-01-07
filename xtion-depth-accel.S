@@ -111,6 +111,8 @@ xtion_depth_unpack_AVX2:
 	#  rdx output
 	#  rcx size
 
+	vzeroall
+
 	# Setup constants
 	vpxor ymm0, ymm0, ymm0
 	vmovdqa ymm10, [rip+xtion_depth_unpack_shuffle]
@@ -157,4 +159,5 @@ xtion_depth_unpack_AVX2:
 		test rcx, rcx
 		jnz 1b
 
+	vzeroall
 	ret

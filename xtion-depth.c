@@ -27,39 +27,36 @@ static const struct framesize frame_sizes[] = {
 static inline struct xtion_depth *endp_depth(struct xtion_endpoint *endp)
 { return container_of(endp, struct xtion_depth, endp); }
 
+static inline struct xtion_depth_buffer *depth_buf(struct xtion_buffer* buf)
+{ return container_of(buf, struct xtion_depth_buffer, xbuf); }
+
 static void depth_start(struct xtion_endpoint* endp)
 {
-	struct xtion_depth *depth = endp_depth(endp);
-	unsigned long flags = 0;
+	struct xtion_depth_buffer *dbuf;
 	__u8 *vaddr;
-
-	dev_info(&endp->xtion->dev->dev, "depth_start\n");
+	size_t length;
 
 	if(!endp->active_buffer) {
-		/* Find free buffer */
-		spin_lock_irqsave(&endp->buf_lock, flags);
-		if (!list_empty(&endp->avail_bufs)) {
-				endp->active_buffer = list_first_entry(&endp->avail_bufs, struct xtion_buffer, list);
-				list_del(&endp->active_buffer->list);
-		}
-		spin_unlock_irqrestore(&endp->buf_lock, flags);
+		endp->active_buffer = xtion_endpoint_get_next_buf(endp);
+		if(!endp->active_buffer)
+			return;
 	}
 
-	if(!endp->active_buffer)
-		return;
+	dbuf = depth_buf(endp->active_buffer);
 
-	vaddr = vb2_plane_vaddr(&endp->active_buffer->vb, 0);
+	vaddr = vb2_plane_vaddr(&dbuf->xbuf.vb, 0);
+	length = vb2_plane_size(&dbuf->xbuf.vb, 0);
 	if(!vaddr)
 		return;
 
-	endp->active_buffer->pos = 2 * endp->packet_pad_start;
+	dbuf->xbuf.pos = 2 * endp->packet_pad_start;
 
-	if(endp->active_buffer->pos > endp->pix_fmt.sizeimage)
+	if(dbuf->xbuf.pos > length)
 		return;
 
-	memset(vaddr, 0, endp->active_buffer->pos);
+	memset(vaddr, 0, dbuf->xbuf.pos);
 
-	depth->temp_bytes = 0;
+	dbuf->frame_bytes = 0;
 }
 
 static inline size_t depth_unpack(struct xtion_depth *depth, struct xtion_buffer *buf, const __u8* src, size_t size)
@@ -67,14 +64,20 @@ static inline size_t depth_unpack(struct xtion_depth *depth, struct xtion_buffer
 	size_t num_elements = size / INPUT_ELEMENT_SIZE;
 	__u8* vaddr = vb2_plane_vaddr(&buf->vb, 0);
 	__u8* wptr = vaddr + buf->pos;
+	size_t num_bytes;
 
 	if(!vaddr)
 		return 0;
 
 	if(num_elements != 0) {
+		num_bytes = num_elements * 8 * sizeof(__u16);
+		if(buf->pos + num_bytes > vb2_plane_size(&buf->vb, 0)) {
+			dev_err(&depth->endp.xtion->dev->dev, "depth buffer overflow: %lu\n", buf->pos + num_bytes);
+			return num_elements * INPUT_ELEMENT_SIZE;
+		}
+
 		xtion_depth_unpack_AVX2(src, depth->lut, (__u16*)wptr, num_elements);
-		wptr += 2 * 8 * num_elements;
-		buf->pos += 2 * 8 * num_elements;
+		buf->pos += num_bytes;
 	}
 
 	return num_elements * INPUT_ELEMENT_SIZE;
@@ -82,70 +85,58 @@ static inline size_t depth_unpack(struct xtion_depth *depth, struct xtion_buffer
 
 static void depth_data(struct xtion_endpoint* endp, const __u8* data, unsigned int size)
 {
-	struct xtion_depth *depth = endp_depth(endp);
+	struct xtion_depth_buffer* dbuf = depth_buf(endp->active_buffer);
 	size_t bytes;
 
-	if(!endp->active_buffer) {
-// 		dev_err(&endp->xtion->dev->dev, "data without buffer\n");
+	if(!dbuf)
 		return;
-	}
-
-// 	dev_info(&endp->xtion->dev->dev, "depth_data\n");
-
-	if(depth->temp_bytes != 0) {
-		/* Process leftover data from the last packet */
-		bytes = min_t(size_t, size, INPUT_ELEMENT_SIZE - depth->temp_bytes);
-
-		if(bytes >= INPUT_ELEMENT_SIZE || bytes >= size) {
-			dev_err(&depth->endp.xtion->dev->dev, "BUG: %lu\n", bytes);
-			return;
-		}
-
-		if(depth->temp_bytes + bytes > sizeof(depth->temp_buffer)) {
-			dev_err(&depth->endp.xtion->dev->dev, "=============== BUG2: %u + %lu > %lu\n", depth->temp_bytes, bytes, sizeof(depth->temp_buffer));
-			return;
-		}
-		memcpy(depth->temp_buffer + depth->temp_bytes, data, bytes);
-		depth->temp_bytes += bytes;
-		data += bytes;
-		size -= bytes;
-
-		if(depth->temp_bytes == INPUT_ELEMENT_SIZE) {
-			depth_unpack(depth, endp->active_buffer, depth->temp_buffer, INPUT_ELEMENT_SIZE);
-			depth->temp_bytes = 0;
-		}
-	}
 
 	if(size == 0)
 		return;
 
-	bytes = depth_unpack(depth, endp->active_buffer, data, size);
+	bytes = min_t(size_t, size, sizeof(dbuf->frame_buffer) - dbuf->frame_bytes);
 
-	data += bytes;
-	size -= bytes;
-
-	/* Stash leftover bytes */
-	if(depth->temp_bytes + size > sizeof(depth->temp_buffer)) {
-		dev_err(&depth->endp.xtion->dev->dev, "=============== BUG3: %u + %u > %lu\n", depth->temp_bytes, size, sizeof(depth->temp_buffer));
-		return;
-	}
-
-	memcpy(depth->temp_buffer, data, size);
-	depth->temp_bytes = size;
+	memcpy(dbuf->frame_buffer + dbuf->frame_bytes, data, bytes);
+	dbuf->frame_bytes += bytes;
 }
 
 static void depth_end(struct xtion_endpoint *endp)
 {
-	if(!endp->active_buffer)
+	struct xtion_buffer *buffer = endp->active_buffer;
+	if(!buffer)
 		return;
 
-	dev_info(&endp->xtion->dev->dev, "depth_end\n");
+	if(vb2_is_streaming(&endp->xtion->color.endp.vb2)) {
+		/* Use timestamp & seq info from color frame */
+		buffer->vb.v4l2_buf.timestamp = endp->xtion->color.endp.packet_system_timestamp;
+		buffer->vb.v4l2_buf.sequence = endp->xtion->color.endp.frame_id;
+	} else {
+		buffer->vb.v4l2_buf.timestamp = endp->packet_system_timestamp;
+		buffer->vb.v4l2_buf.sequence = endp->frame_id;
+	}
 
-	endp->active_buffer->vb.v4l2_buf.bytesused = endp->active_buffer->pos;
-
-	vb2_set_plane_payload(&endp->active_buffer->vb, 0, endp->active_buffer->pos);
-	vb2_buffer_done(&endp->active_buffer->vb, VB2_BUF_STATE_DONE);
+	vb2_buffer_done(&buffer->vb, VB2_BUF_STATE_DONE);
 	endp->active_buffer = 0;
+}
+
+static int depth_uncompress(struct xtion_endpoint *endp, struct xtion_buffer *buf)
+{
+	struct xtion_depth *depth = endp_depth(endp);
+	struct xtion_depth_buffer *dbuf = depth_buf(buf);
+
+	size_t pad = endp->packet_pad_end * 2;
+
+	depth_unpack(depth, buf, dbuf->frame_buffer, dbuf->frame_bytes);
+	if(buf->pos + pad > endp->pix_fmt.sizeimage) {
+		dev_err(&endp->xtion->dev->dev, "depth buffer overflow (padding)\n");
+		return 1;
+	}
+	memset(vb2_plane_vaddr(&buf->vb, 0), 0, pad);
+	buf->pos += pad;
+	buf->vb.v4l2_buf.bytesused = buf->pos;
+	vb2_set_plane_payload(&buf->vb, 0, buf->pos);
+
+	return 0;
 }
 
 static int depth_enumerate_sizes(struct xtion_endpoint *endp, struct v4l2_frmsizeenum *size)
@@ -179,6 +170,7 @@ static const struct xtion_endpoint_config xtion_depth_endpoint_config = {
 	.pix_fmt         = v4l2_fourcc('Y', '1', '1', ' '), /* 11-bit greyscale */
 	.pixel_size      = 2,
 	.bulk_urb_size   = 20480 / 4,
+	.buffer_size     = sizeof(struct xtion_depth_buffer),
 
 	.settings_base   = XTION_P_DEPTH_BASE,
 	.endpoint_register = XTION_P_GENERAL_STREAM1_MODE,
@@ -189,7 +181,8 @@ static const struct xtion_endpoint_config xtion_depth_endpoint_config = {
 	.handle_data     = depth_data,
 	.handle_end      = depth_end,
 	.enumerate_sizes = depth_enumerate_sizes,
-	.lookup_size     = depth_lookup_size
+	.lookup_size     = depth_lookup_size,
+	.uncompress      = depth_uncompress
 };
 
 int xtion_depth_init(struct xtion_depth *depth, struct xtion *xtion)

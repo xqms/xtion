@@ -37,20 +37,12 @@ static inline struct xtion_color *endp_color(struct xtion_endpoint *endp)
 static void color_start(struct xtion_endpoint* endp)
 {
 	struct xtion_color *color = endp_color(endp);
-	unsigned long flags = 0;
 
 	if(!endp->active_buffer) {
-		/* Find free buffer */
-		spin_lock_irqsave(&endp->buf_lock, flags);
-		if (!list_empty(&endp->avail_bufs)) {
-				endp->active_buffer = list_first_entry(&endp->avail_bufs, struct xtion_buffer, list);
-				list_del(&endp->active_buffer->list);
-		}
-		spin_unlock_irqrestore(&endp->buf_lock, flags);
+		endp->active_buffer = xtion_endpoint_get_next_buf(endp);
+		if(!endp->active_buffer)
+			return;
 	}
-
-	if(!endp->active_buffer)
-		return;
 
 	endp->active_buffer->pos = 0;
 
@@ -68,7 +60,7 @@ static unsigned int channel_map[4] = {0, 1, 2, 1}; // UYVY
 static inline void color_put_byte(struct xtion_color* color, struct xtion_buffer *buffer, __u8 val) {
 	__u8 *vaddr = vb2_plane_vaddr(&buffer->vb, 0);
 
-	if(buffer->pos == color->endp.pix_fmt.sizeimage) {
+	if(buffer->pos >= vb2_plane_size(&buffer->vb, 0)) {
 		dev_warn(&color->endp.xtion->dev->dev, "buffer overflow");
 		return;
 	}
@@ -221,19 +213,15 @@ static void color_data(struct xtion_endpoint* endp, const __u8* data, unsigned i
 	struct xtion_color *color = endp_color(endp);
 	__u8* vaddr;
 
-	if(!endp->active_buffer) {
-		dev_err(&endp->xtion->dev->dev, "data without buffer\n");
+	if(!endp->active_buffer)
 		return;
-	}
 
 	vaddr = vb2_plane_vaddr(&endp->active_buffer->vb, 0);
-	if(!vaddr) {
+	if(!vaddr)
 		return;
-	}
 
-	if(size != 0) {
+	if(size != 0)
 		color_unpack(color, data, size);
-	}
 }
 
 static void color_end(struct xtion_endpoint *endp)
@@ -242,6 +230,8 @@ static void color_end(struct xtion_endpoint *endp)
 		return;
 
 	endp->active_buffer->vb.v4l2_buf.bytesused = endp->active_buffer->pos;
+	endp->active_buffer->vb.v4l2_buf.timestamp = endp->packet_system_timestamp;
+	endp->active_buffer->vb.v4l2_buf.sequence = endp->frame_id;
 
 	vb2_set_plane_payload(&endp->active_buffer->vb, 0, endp->active_buffer->pos);
 	vb2_buffer_done(&endp->active_buffer->vb, VB2_BUF_STATE_DONE);
@@ -278,6 +268,7 @@ const struct xtion_endpoint_config xtion_color_endpoint_config = {
 	.end_id          = 0x8500,
 	.pix_fmt         = V4L2_PIX_FMT_UYVY,
 	.pixel_size      = 2,
+	.buffer_size     = sizeof(struct xtion_buffer),
 
 	.settings_base   = XTION_P_IMAGE_BASE,
 	.endpoint_register = XTION_P_GENERAL_STREAM0_MODE,

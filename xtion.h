@@ -56,6 +56,8 @@ struct xtion_endpoint_config
 
 	unsigned int bulk_urb_size;
 
+	unsigned int buffer_size;
+
 	void (*handle_start)(struct xtion_endpoint* endp);
 	void (*handle_data)(struct xtion_endpoint* endp, const __u8* data, unsigned int size);
 	void (*handle_end)(struct xtion_endpoint* endp);
@@ -63,6 +65,8 @@ struct xtion_endpoint_config
 	int (*enumerate_sizes)(struct xtion_endpoint *endp, struct v4l2_frmsizeenum *framesize);
 	int (*enumerate_rates)(struct xtion_endpoint *endp, struct v4l2_frmivalenum *interval);
 	int (*lookup_size)(struct xtion_endpoint *endp, unsigned int width, unsigned int height);
+
+	int (*uncompress)(struct xtion_endpoint *endp, struct xtion_buffer *buf);
 };
 
 struct xtion_endpoint
@@ -94,11 +98,17 @@ struct xtion_endpoint
 	unsigned int packet_corrupt;
 	unsigned int packet_pad_start;
 	unsigned int packet_pad_end;
+	__u32 packet_timestamp;
+	struct timeval packet_system_timestamp;
+	__u32 frame_id;
 };
 
 struct xtion_depth
 {
 	struct xtion_endpoint endp;
+
+	__u8 frame_buffer[640*480*11/8+1];
+	__u8 frame_bytes;
 
 	__u8 temp_buffer[4096];
 	__u16 temp_bytes;
@@ -143,6 +153,13 @@ struct xtion_buffer
 	struct vb2_buffer vb;
 	unsigned long pos;
 	struct list_head list;
+};
+
+struct xtion_depth_buffer
+{
+	struct xtion_buffer xbuf;
+	__u8 frame_buffer[640*480*11/9];
+	size_t frame_bytes;
 };
 
 #endif

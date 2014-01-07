@@ -48,19 +48,22 @@ ssize_t show_id(struct device *dev, struct device_attribute *attr, char *buf)
 
 static DEVICE_ATTR(xtion_id, S_IRUGO, show_id, 0);
 
-
 static int xtion_probe(struct usb_interface *interface, const struct usb_device_id *id)
 {
 	struct usb_device *udev = interface_to_usbdev(interface);
 	struct xtion *xtion = NULL;
 	int ret = -ENOMEM;
 
-	msleep(1000);
-
-	/* Supported by snd-usb-audio */
-	if (interface->altsetting[0].desc.bInterfaceClass == USB_CLASS_AUDIO)
+	/* We only care for the data interface (0) */
+	if(interface->altsetting->desc.bInterfaceNumber != 0)
 		return -ENODEV;
 
+	/* FIXME: Is there a better way to wait for Xtion init to finish? */
+	msleep(3000);
+
+	usb_reset_endpoint(udev, 0);
+
+	/* Allocate our driver structure and link it to the usb_device */
 	xtion = kzalloc(sizeof(struct xtion), GFP_KERNEL);
 	if(!xtion) {
 		dev_err(&interface->dev, "Out of memory\n");
@@ -83,9 +86,12 @@ static int xtion_probe(struct usb_interface *interface, const struct usb_device_
 		}
 	}
 
+	/* Read firmware version and check if it is recent enough */
 	ret = xtion_read_version(xtion);
-	if(ret != 0)
+	if(ret != 0) {
+		usb_reset_device(udev);
 		goto error_release;
+	}
 
 	dev_info(&xtion->dev->dev, "Found ASUS Xtion with firmware version %d.%d.%d, chip: 0x%X, fpga: %d\n",
 		xtion->version.major, xtion->version.minor, xtion->version.build,
@@ -99,10 +105,15 @@ static int xtion_probe(struct usb_interface *interface, const struct usb_device_
 		goto error_release;
 	}
 
+	/* Perform a power-on reset */
+	xtion_reset(xtion);
+
+	/* Read fixed parameters TODO: needed? */
 	ret = xtion_read_fixed_params(xtion);
 	if(ret != 0)
 		goto error_release;
 
+	/* Read serial number and make it available through sysfs */
 	ret = xtion_read_serial_number(xtion);
 	if(ret != 0)
 		goto error_release;
@@ -110,7 +121,7 @@ static int xtion_probe(struct usb_interface *interface, const struct usb_device_
 	dev_info(&xtion->dev->dev, "ID: %s\n", xtion->serial_number);
 	device_create_file(&interface->dev, &dev_attr_xtion_id);
 
-	/* Setup video device */
+	/* Setup v4l2 device */
 	ret = v4l2_device_register(&interface->dev, &xtion->v4l2_dev);
 	if(ret != 0)
 		goto error_release;
@@ -142,9 +153,19 @@ static void xtion_disconnect(struct usb_interface *interface)
 {
 	struct xtion* xtion = usb_get_intfdata(interface);
 
-	device_remove_file(xtion->v4l2_dev.dev, &dev_attr_xtion_id);
+	mutex_lock(&xtion->control_mutex);
 
-	usb_set_intfdata(interface, NULL);
+	xtion_endpoint_disconnect(&xtion->color.endp);
+	xtion_endpoint_disconnect(&xtion->depth.endp);
+
+	xtion->dev = NULL;
+
+	device_remove_file(xtion->v4l2_dev.dev, &dev_attr_xtion_id);
+	v4l2_device_disconnect(&xtion->v4l2_dev);
+
+	mutex_unlock(&xtion->control_mutex);
+
+	dev_info(&interface->dev, "xtion disconnected\n");
 
 	xtion_depth_release(&xtion->depth);
 	xtion_color_release(&xtion->color);
@@ -156,8 +177,6 @@ static void xtion_disconnect(struct usb_interface *interface)
 	mutex_destroy(&xtion->control_mutex);
 
 	kfree(xtion);
-
-	dev_info(&interface->dev, "xtion disconnected\n");
 }
 
 
