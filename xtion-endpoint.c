@@ -687,7 +687,6 @@ ssize_t show_endpoint(struct device *dev, struct device_attribute *attr, char *b
 
 static DEVICE_ATTR(xtion_endpoint, S_IRUGO, show_endpoint, 0);
 
-
 int xtion_endpoint_init(struct xtion_endpoint* endp, struct xtion* xtion, const struct xtion_endpoint_config *config)
 {
 	struct v4l2_pix_format* pix_format;
@@ -758,6 +757,9 @@ int xtion_endpoint_init(struct xtion_endpoint* endp, struct xtion* xtion, const 
 	endp->packet_off = 0;
 	endp->fps = 30;
 
+	v4l2_ctrl_handler_init(&endp->ctrl_handler, 5);
+	endp->video.ctrl_handler = &endp->ctrl_handler;
+
 	return 0;
 
 error_unregister:
@@ -770,6 +772,7 @@ error_release_queue:
 
 void xtion_endpoint_release(struct xtion_endpoint* endp)
 {
+	v4l2_ctrl_handler_free(&endp->ctrl_handler);
 	xtion_usb_release(endp);
 	device_remove_file(&endp->video.dev, &dev_attr_xtion_endpoint);
 	video_unregister_device(&endp->video);

@@ -10,6 +10,7 @@
 #include <linux/usb.h>
 #include <media/v4l2-dev.h>
 #include <media/v4l2-device.h>
+#include <media/v4l2-ctrls.h>
 #include <media/videobuf2-core.h>
 
 #include "protocol.h"
@@ -75,6 +76,7 @@ struct xtion_endpoint
 	const struct xtion_endpoint_config *config;
 
 	struct video_device video;
+	struct v4l2_ctrl_handler ctrl_handler;
 	struct v4l2_pix_format pix_fmt;
 	u16 fps;
 
