@@ -8,7 +8,7 @@
 #include "xtion-depth-lut.h"
 
 /* defined in xtion-depth-accel.s */
-extern void xtion_depth_unpack_AVX2(const __u8 *input, const __u16 *lut, __u16 *output, __u32 size);
+extern void xtion_depth_unpack_AVX2(const u8 *input, const u16 *lut, u16 *output, u32 size);
 
 #define INPUT_ELEMENT_SIZE 11
 
@@ -16,7 +16,7 @@ struct framesize
 {
 	unsigned int width;
 	unsigned int height;
-	__u16 code;
+	u16 code;
 };
 
 static const struct framesize frame_sizes[] = {
@@ -33,7 +33,7 @@ static inline struct xtion_depth_buffer *depth_buf(struct xtion_buffer* buf)
 static void depth_start(struct xtion_endpoint* endp)
 {
 	struct xtion_depth_buffer *dbuf;
-	__u8 *vaddr;
+	u8 *vaddr;
 	size_t length;
 
 	if(!endp->active_buffer) {
@@ -59,31 +59,31 @@ static void depth_start(struct xtion_endpoint* endp)
 	dbuf->frame_bytes = 0;
 }
 
-static inline size_t depth_unpack(struct xtion_depth *depth, struct xtion_buffer *buf, const __u8* src, size_t size)
+static inline size_t depth_unpack(struct xtion_depth *depth, struct xtion_buffer *buf, const u8* src, size_t size)
 {
 	size_t num_elements = size / INPUT_ELEMENT_SIZE;
-	__u8* vaddr = vb2_plane_vaddr(&buf->vb, 0);
-	__u8* wptr = vaddr + buf->pos;
+	u8* vaddr = vb2_plane_vaddr(&buf->vb, 0);
+	u8* wptr = vaddr + buf->pos;
 	size_t num_bytes;
 
 	if(!vaddr)
 		return 0;
 
 	if(num_elements != 0) {
-		num_bytes = num_elements * 8 * sizeof(__u16);
+		num_bytes = num_elements * 8 * sizeof(u16);
 		if(buf->pos + num_bytes > vb2_plane_size(&buf->vb, 0)) {
 			dev_err(&depth->endp.xtion->dev->dev, "depth buffer overflow: %lu\n", buf->pos + num_bytes);
 			return num_elements * INPUT_ELEMENT_SIZE;
 		}
 
-		xtion_depth_unpack_AVX2(src, depth->lut, (__u16*)wptr, num_elements);
+		xtion_depth_unpack_AVX2(src, depth->lut, (u16*)wptr, num_elements);
 		buf->pos += num_bytes;
 	}
 
 	return num_elements * INPUT_ELEMENT_SIZE;
 }
 
-static void depth_data(struct xtion_endpoint* endp, const __u8* data, unsigned int size)
+static void depth_data(struct xtion_endpoint* endp, const u8* data, unsigned int size)
 {
 	struct xtion_depth_buffer* dbuf = depth_buf(endp->active_buffer);
 	size_t bytes;

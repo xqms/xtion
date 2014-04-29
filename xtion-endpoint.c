@@ -11,8 +11,8 @@
 
 #include "xtion-control.h"
 
-static const __u16 intervals[] = {
-	30, 60
+static const u16 intervals[] = {
+	5, 15, 30, 60
 };
 
 /******************************************************************************/
@@ -20,10 +20,10 @@ static const __u16 intervals[] = {
  * USB handling
  */
 
-static void xtion_usb_process(struct xtion_endpoint *endp, const __u8 *data, unsigned int size)
+static void xtion_usb_process(struct xtion_endpoint *endp, const u8 *data, unsigned int size)
 {
 	unsigned int off = 0;
-	const __u8 *rptr;
+	const u8 *rptr;
 	unsigned int to_read;
 
 	if(WARN_ON(!endp || !endp->config)) {
@@ -51,7 +51,7 @@ static void xtion_usb_process(struct xtion_endpoint *endp, const __u8 *data, uns
 			break;
 		case XTION_PS_HEADER:
 			to_read = min_t(unsigned int, size - off, sizeof(struct XtionSensorReplyHeader) - endp->packet_off);
-			memcpy(((__u8*)&endp->packet_header) + endp->packet_off, rptr, to_read);
+			memcpy(((u8*)&endp->packet_header) + endp->packet_off, rptr, to_read);
 			endp->packet_off += to_read;
 			off += to_read;
 
@@ -118,7 +118,7 @@ static void xtion_usb_irq_isoc(struct urb *urb)
 	int i;
 	int status;
 	unsigned int size;
-	__u8 *p;
+	u8 *p;
 
 	switch(urb->status)
 	{

@@ -45,21 +45,21 @@ struct xtion_endpoint_config
 	char name[64];
 	unsigned int addr;
 	unsigned int pix_fmt;
-	__u16 start_id;
-	__u16 end_id;
+	u16 start_id;
+	u16 end_id;
 	unsigned int pixel_size;
 
-	__u16 settings_base;
-	__u16 endpoint_register;
-	__u16 endpoint_mode;
-	__u16 image_format;
+	u16 settings_base;
+	u16 endpoint_register;
+	u16 endpoint_mode;
+	u16 image_format;
 
 	unsigned int bulk_urb_size;
 
 	unsigned int buffer_size;
 
 	void (*handle_start)(struct xtion_endpoint* endp);
-	void (*handle_data)(struct xtion_endpoint* endp, const __u8* data, unsigned int size);
+	void (*handle_data)(struct xtion_endpoint* endp, const u8* data, unsigned int size);
 	void (*handle_end)(struct xtion_endpoint* endp);
 
 	int (*enumerate_sizes)(struct xtion_endpoint *endp, struct v4l2_frmsizeenum *framesize);
@@ -76,7 +76,7 @@ struct xtion_endpoint
 
 	struct video_device video;
 	struct v4l2_pix_format pix_fmt;
-	__u16 fps;
+	u16 fps;
 
 	/* Image buffers */
 	struct vb2_queue vb2;
@@ -87,7 +87,7 @@ struct xtion_endpoint
 	struct list_head avail_bufs;
 	spinlock_t buf_lock;
 	struct urb *urbs[XTION_NUM_URBS];
-	__u8 *transfer_buffers[XTION_NUM_URBS];
+	u8 *transfer_buffers[XTION_NUM_URBS];
 
 	/* Packet parser */
 	int packet_state;
@@ -98,36 +98,36 @@ struct xtion_endpoint
 	unsigned int packet_corrupt;
 	unsigned int packet_pad_start;
 	unsigned int packet_pad_end;
-	__u32 packet_timestamp;
+	u32 packet_timestamp;
 	struct timeval packet_system_timestamp;
-	__u32 frame_id;
+	u32 frame_id;
 };
 
 struct xtion_depth
 {
 	struct xtion_endpoint endp;
 
-	__u8 frame_buffer[640*480*11/8+1];
-	__u8 frame_bytes;
+	u8 frame_buffer[640*480*11/8+1];
+	u8 frame_bytes;
 
-	__u8 temp_buffer[4096];
-	__u16 temp_bytes;
+	u8 temp_buffer[4096];
+	u16 temp_bytes;
 
-	const __u16* lut;
+	const u16* lut;
 };
 
 struct xtion_color
 {
 	struct xtion_endpoint endp;
 
-	__u32 current_channel;
-	__u32 current_channel_idx;
-	__u32 last_full_values[3];
+	u32 current_channel;
+	u32 current_channel_idx;
+	u32 last_full_values[3];
 
-	__u32 stashed_nibble;
-	__u32 open_nibbles;
+	u32 stashed_nibble;
+	u32 open_nibbles;
 
-	__u32 line_count;
+	u32 line_count;
 };
 
 struct xtion
@@ -140,7 +140,7 @@ struct xtion
 
 	unsigned int flags;
 
-	__u16 message_id;
+	u16 message_id;
 
 	struct xtion_color color;
 	struct xtion_depth depth;
@@ -158,7 +158,7 @@ struct xtion_buffer
 struct xtion_depth_buffer
 {
 	struct xtion_buffer xbuf;
-	__u8 frame_buffer[640*480*11/9];
+	u8 frame_buffer[640*480*11/9];
 	size_t frame_bytes;
 };
 

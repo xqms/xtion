@@ -9,7 +9,7 @@ struct framesize
 {
 	unsigned int width;
 	unsigned int height;
-	__u16 code;
+	u16 code;
 };
 
 static const struct framesize frame_sizes[] = {
@@ -57,8 +57,8 @@ static void color_start(struct xtion_endpoint* endp)
 
 static unsigned int channel_map[4] = {0, 1, 2, 1}; // UYVY
 
-static inline void color_put_byte(struct xtion_color* color, struct xtion_buffer *buffer, __u8 val) {
-	__u8 *vaddr = vb2_plane_vaddr(&buffer->vb, 0);
+static inline void color_put_byte(struct xtion_color* color, struct xtion_buffer *buffer, u8 val) {
+	u8 *vaddr = vb2_plane_vaddr(&buffer->vb, 0);
 
 	if(buffer->pos >= vb2_plane_size(&buffer->vb, 0)) {
 		dev_warn(&color->endp.xtion->dev->dev, "buffer overflow");
@@ -79,7 +79,7 @@ static inline void color_put_byte(struct xtion_color* color, struct xtion_buffer
 	}
 }
 
-static inline int color_unpack_nibble(struct xtion_color *color, struct xtion_buffer *buffer, __u32 nibble) {
+static inline int color_unpack_nibble(struct xtion_color *color, struct xtion_buffer *buffer, u32 nibble) {
 	if(nibble < 0xd) {
 		color_put_byte(color, buffer, color->last_full_values[color->current_channel] + (__s8)(nibble - 6));
 	} else if(nibble == 0xf) {
@@ -89,11 +89,11 @@ static inline int color_unpack_nibble(struct xtion_color *color, struct xtion_bu
 	return 0;
 }
 
-static void color_unpack(struct xtion_color *color, const __u8 *data, unsigned int size)
+static void color_unpack(struct xtion_color *color, const u8 *data, unsigned int size)
 {
 	struct xtion_buffer *buffer = color->endp.active_buffer;
-	__u32 c = *data;
-	__u32 temp;
+	u32 c = *data;
+	u32 temp;
 
 	if(color->open_nibbles == 1) {
 		/* The high nibble of the first input byte belongs to the last output byte */
@@ -208,10 +208,10 @@ static void color_unpack(struct xtion_color *color, const __u8 *data, unsigned i
 	color->open_nibbles = 0;
 }
 
-static void color_data(struct xtion_endpoint* endp, const __u8* data, unsigned int size)
+static void color_data(struct xtion_endpoint* endp, const u8* data, unsigned int size)
 {
 	struct xtion_color *color = endp_color(endp);
-	__u8* vaddr;
+	u8* vaddr;
 
 	if(!endp->active_buffer)
 		return;

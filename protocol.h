@@ -47,115 +47,115 @@
 
 struct XtionHeader
 {
-	__u16 magic;
-	__u16 size;
-	__u16 opcode;
-	__u16 id;
+	u16 magic;
+	u16 size;
+	u16 opcode;
+	u16 id;
 } __attribute__((packed));
 
 struct XtionReplyHeader
 {
 	struct XtionHeader header;
-	__u16 error;
+	u16 error;
 } __attribute__((packed));
 
 struct XtionSensorReplyHeader
 {
-	__u16 magic;
-	__u16 type;
-	__u16 packetID;
-	__u8 bufSize_high;
-	__u8 bufSize_low;
-	__u32 timestamp;
+	u16 magic;
+	u16 type;
+	u16 packetID;
+	u8 bufSize_high;
+	u8 bufSize_low;
+	u32 timestamp;
 } __attribute__((packed));
 
 struct XtionVersion
 {
-	__u8 major;
-	__u8 minor;
-	__u16 build;
-	__u32 chip;
-	__u16 fpga;
-	__u16 system_version;
+	u8 major;
+	u8 minor;
+	u16 build;
+	u32 chip;
+	u16 fpga;
+	u16 system_version;
 } __attribute__((packed));
 
 struct XtionFixedParams
 {
 	// Misc
-	__u32 serial_number;
-	__u32 watch_dog_timeout;
+	u32 serial_number;
+	u32 watch_dog_timeout;
 
 	// Flash
-	__u32 flash_type;
-	__u32 flash_size;
-	__u32 flash_burst_enable;
-	__u32 fmif_read_burst_cycles;
-	__u32 fmif_read_access_cycles;
-	__u32 fmif_read_recover_cycles;
-	__u32 fmif_write_access_cycles;
-	__u32 fmif_write_recover_cycles;
-	__u32 fmif_write_assertion_cycles;
+	u32 flash_type;
+	u32 flash_size;
+	u32 flash_burst_enable;
+	u32 fmif_read_burst_cycles;
+	u32 fmif_read_access_cycles;
+	u32 fmif_read_recover_cycles;
+	u32 fmif_write_access_cycles;
+	u32 fmif_write_recover_cycles;
+	u32 fmif_write_assertion_cycles;
 
 	// Audio
-	__u32 i2s_logic_clock_polartiy;
+	u32 i2s_logic_clock_polartiy;
 
 	// Depth
-	__u32 depth_ciu_horizontal_sync_polarity;
-	__u32 depth_ciu_vertical_sync_polarity;
-	__u32 depth_cmos_type;
-	__u32 depth_cmos_i2c_address;
-	__u32 depth_cmos_i2c_bus;
+	u32 depth_ciu_horizontal_sync_polarity;
+	u32 depth_ciu_vertical_sync_polarity;
+	u32 depth_cmos_type;
+	u32 depth_cmos_i2c_address;
+	u32 depth_cmos_i2c_bus;
 
 	// Image
-	__u32 image_ciu_horizontal_sync_polarity;
-	__u32 image_ciu_vertical_sync_polarity;
-	__u32 image_cmos_type;
-	__u32 image_cmos_i2c_address;
-	__u32 image_cmos_i2c_bus;
+	u32 image_ciu_horizontal_sync_polarity;
+	u32 image_ciu_vertical_sync_polarity;
+	u32 image_cmos_type;
+	u32 image_cmos_i2c_address;
+	u32 image_cmos_i2c_bus;
 
 	// Geometry
-	__u32 ir_cmos_close_to_projector;
+	u32 ir_cmos_close_to_projector;
 	float dcmos_emitter_distance;
 	float dcmos_rcmos_distance;
 	float reference_distance;
 	float reference_pixel_size;
 
 	// Clocks
-	__u32 pll_value;
-	__u32 system_clock_divider;
-	__u32 rcmos_clock_divider;
-	__u32 dcmos_clock_divider;
-	__u32 adc_clock_divider;
-	__u32 i2c_standard_speed_hcount;
-	__u32 i2c_standard_speed_lcount;
-	__u32 i2c_hold_fix_delay;
+	u32 pll_value;
+	u32 system_clock_divider;
+	u32 rcmos_clock_divider;
+	u32 dcmos_clock_divider;
+	u32 adc_clock_divider;
+	u32 i2c_standard_speed_hcount;
+	u32 i2c_standard_speed_lcount;
+	u32 i2c_hold_fix_delay;
 
-	__u32 sensor_type;
-	__u32 debug_mode;
-	__u32 use_ext_phy;
-	__u32 projector_protection_enabled;
-	__u32 projector_dac_output_voltage;
-	__u32 projector_dac_output_voltage2;
-	__u32 tec_emitter_delay;
+	u32 sensor_type;
+	u32 debug_mode;
+	u32 use_ext_phy;
+	u32 projector_protection_enabled;
+	u32 projector_dac_output_voltage;
+	u32 projector_dac_output_voltage2;
+	u32 tec_emitter_delay;
 } __attribute__((packed));
 
 struct XtionFixedParamRequest
 {
 	struct XtionHeader header;
-	__u16 addr;
+	u16 addr;
 } __attribute__((packed));
 
 struct XtionSetParamRequest
 {
 	struct XtionHeader header;
-	__u16 param;
-	__u16 value;
+	u16 param;
+	u16 value;
 } __attribute__((packed));
 
 struct XtionSetModeRequest
 {
 	struct XtionHeader header;
-	__u16 mode;
+	u16 mode;
 } __attribute__((packed));
 
 #endif

@@ -10,7 +10,7 @@
 #include <linux/usb.h>
 #include <linux/slab.h>
 
-int xtion_control(struct xtion* xtion, __u8 *src, __u16 size, __u8 *dst, __u16 *dst_size)
+int xtion_control(struct xtion* xtion, u8 *src, u16 size, u8 *dst, u16 *dst_size)
 {
 	int ret = 0;
 	int tries;
@@ -26,7 +26,7 @@ int xtion_control(struct xtion* xtion, __u8 *src, __u16 size, __u8 *dst, __u16 *
 		USB_TYPE_VENDOR | USB_DIR_OUT | USB_RECIP_DEVICE,
 		0,
 		0,
-		(__u8*)src,
+		(u8*)src,
 		size,
 		500
 	);
@@ -74,9 +74,9 @@ int xtion_control(struct xtion* xtion, __u8 *src, __u16 size, __u8 *dst, __u16 *
 
 int xtion_read_version(struct xtion* xtion)
 {
-	//__u8 response_buffer[sizeof(struct XtionReplyHeader) + sizeof(struct XtionVersion)];
-	__u8 response_buffer[512];
-	__u16 response_size = sizeof(response_buffer);
+	//u8 response_buffer[sizeof(struct XtionReplyHeader) + sizeof(struct XtionVersion)];
+	u8 response_buffer[512];
+	u16 response_size = sizeof(response_buffer);
 	struct XtionHeader header;
 	int ret;
 	struct XtionReplyHeader* reply = (struct XtionReplyHeader*)response_buffer;
@@ -86,7 +86,7 @@ int xtion_read_version(struct xtion* xtion)
 	header.opcode = XTION_OPCODE_GET_VERSION;
 	header.id = 0;
 
-	ret = xtion_control(xtion, (__u8*)&header, sizeof(header), response_buffer, &response_size);
+	ret = xtion_control(xtion, (u8*)&header, sizeof(header), response_buffer, &response_size);
 
 	if(ret < 0) {
 		dev_err(&xtion->dev->dev, "Could not read version: %d\n", ret);
@@ -105,13 +105,13 @@ int xtion_read_version(struct xtion* xtion)
 
 int xtion_read_fixed_params(struct xtion* xtion)
 {
-	__u8 response_buffer[sizeof(struct XtionReplyHeader) + sizeof(struct XtionFixedParams)];
-	__u16 response_size = sizeof(response_buffer);
+	u8 response_buffer[sizeof(struct XtionReplyHeader) + sizeof(struct XtionFixedParams)];
+	u16 response_size = sizeof(response_buffer);
 	struct XtionFixedParamRequest request;
-	__u32 data_read = 0;
+	u32 data_read = 0;
 	int ret;
 	struct XtionReplyHeader* reply = (struct XtionReplyHeader*)response_buffer;
-	__u8 *dest = (__u8*)&xtion->fixed;
+	u8 *dest = (u8*)&xtion->fixed;
 
 	request.header.magic = XTION_MAGIC_HOST;
 	request.header.size = 0;
@@ -119,11 +119,11 @@ int xtion_read_fixed_params(struct xtion* xtion)
 	request.header.id = 0;
 
 	while(data_read < sizeof(struct XtionFixedParams)) {
-		__u32 data_size;
+		u32 data_size;
 
 		request.addr = __cpu_to_le16(data_read / 4);
 
-		ret = xtion_control(xtion, (__u8*)&request, sizeof(request), response_buffer, &response_size);
+		ret = xtion_control(xtion, (u8*)&request, sizeof(request), response_buffer, &response_size);
 
 		if(ret != 0) {
 			dev_err(&xtion->dev->dev, "Could not read fixed params at addr %d: %d", data_read/4, ret);
@@ -149,8 +149,8 @@ int xtion_read_fixed_params(struct xtion* xtion)
 
 int xtion_read_serial_number(struct xtion *xtion)
 {
-	__u8 response_buffer[sizeof(struct XtionReplyHeader) + SERIAL_NUMBER_MAX_LEN];
-	__u16 response_size = sizeof(response_buffer);
+	u8 response_buffer[sizeof(struct XtionReplyHeader) + SERIAL_NUMBER_MAX_LEN];
+	u16 response_size = sizeof(response_buffer);
 	struct XtionHeader header;
 	int ret;
 	struct XtionReplyHeader* reply = (struct XtionReplyHeader*)response_buffer;
@@ -161,7 +161,7 @@ int xtion_read_serial_number(struct xtion *xtion)
 	header.opcode = XTION_OPCODE_GET_SERIAL_NUMBER;
 	header.id = 1;
 
-	ret = xtion_control(xtion, (__u8*)&header, sizeof(header), response_buffer, &response_size);
+	ret = xtion_control(xtion, (u8*)&header, sizeof(header), response_buffer, &response_size);
 
 	if(ret < 0) {
 		dev_err(&xtion->dev->dev, "Could not read serial number: %d\n", ret);
@@ -180,11 +180,11 @@ int xtion_read_serial_number(struct xtion *xtion)
 	return 0;
 }
 
-int xtion_set_param(struct xtion *xtion, __u16 parameter, __u16 value)
+int xtion_set_param(struct xtion *xtion, u16 parameter, u16 value)
 {
 	struct XtionSetParamRequest packet;
-	__u8 response_buffer[sizeof(struct XtionReplyHeader) + 20];
-	__u16 response_size = sizeof(response_buffer);
+	u8 response_buffer[sizeof(struct XtionReplyHeader) + 20];
+	u16 response_size = sizeof(response_buffer);
 	struct XtionReplyHeader *reply = (struct XtionReplyHeader*)response_buffer;
 	int rc;
 
@@ -195,7 +195,7 @@ int xtion_set_param(struct xtion *xtion, __u16 parameter, __u16 value)
 	packet.param = parameter;
 	packet.value = value;
 
-	rc = xtion_control(xtion, (__u8*)&packet, sizeof(packet), response_buffer, &response_size);
+	rc = xtion_control(xtion, (u8*)&packet, sizeof(packet), response_buffer, &response_size);
 	if(rc < 0) {
 		dev_err(&xtion->dev->dev, "Could not set parameter: %d\n", rc);
 		return rc;
@@ -218,8 +218,8 @@ int xtion_set_param(struct xtion *xtion, __u16 parameter, __u16 value)
 int xtion_reset(struct xtion *xtion)
 {
 	struct XtionSetModeRequest packet;
-	__u8 response_buffer[256];
-	__u16 response_size = sizeof(response_buffer);
+	u8 response_buffer[256];
+	u16 response_size = sizeof(response_buffer);
 	int rc;
 	
 	packet.header.magic = XTION_MAGIC_HOST;
@@ -228,7 +228,7 @@ int xtion_reset(struct xtion *xtion)
 	
 	packet.mode = 3;
 	
-	rc = xtion_control(xtion, (__u8*)&packet, sizeof(packet), response_buffer, &response_size);
+	rc = xtion_control(xtion, (u8*)&packet, sizeof(packet), response_buffer, &response_size);
 	if(rc < 0) {
 		dev_err(&xtion->dev->dev, "Could not set mode: %d\n", rc);
 		return rc;
