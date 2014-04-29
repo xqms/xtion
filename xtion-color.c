@@ -71,7 +71,7 @@ static inline void color_put_byte(struct xtion_color* color, struct xtion_buffer
 	color->current_channel_idx = (color->current_channel_idx+1) % 4;
 	color->current_channel = channel_map[color->current_channel_idx];
 
-	if(++color->line_count == 640*2) {
+	if(++color->line_count == 2*color->endp.pix_fmt.width) {
 		color->last_full_values[0] = 0;
 		color->last_full_values[1] = 0;
 		color->last_full_values[2] = 0;
