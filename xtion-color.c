@@ -4,6 +4,7 @@
 
 #include "xtion-color.h"
 #include "xtion-endpoint.h"
+#include "xtion-control.h"
 
 struct framesize
 {
@@ -284,6 +285,33 @@ const struct xtion_endpoint_config xtion_color_endpoint_config = {
 	.lookup_size     = color_lookup_size
 };
 
+static int xtion_color_s_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct xtion_endpoint *endp = container_of(ctrl->handler, struct xtion_endpoint, ctrl_handler);
+
+	switch(ctrl->id) {
+	case V4L2_CID_POWER_LINE_FREQUENCY:
+		switch(ctrl->val) {
+		case V4L2_CID_POWER_LINE_FREQUENCY_DISABLED:
+			return xtion_set_param(endp->xtion, XTION_P_IMAGE_FLICKER, 0);
+		case V4L2_CID_POWER_LINE_FREQUENCY_50HZ:
+			return xtion_set_param(endp->xtion, XTION_P_IMAGE_FLICKER, 50);
+		case V4L2_CID_POWER_LINE_FREQUENCY_60HZ:
+			return xtion_set_param(endp->xtion, XTION_P_IMAGE_FLICKER, 60);
+		default:
+			return -EINVAL;
+		}
+
+		break;
+	}
+
+	return 0;
+}
+
+static const struct v4l2_ctrl_ops xtion_color_ctrl_ops = {
+	.s_ctrl = xtion_color_s_ctrl,
+};
+
 int xtion_color_init(struct xtion_color *color, struct xtion *xtion)
 {
 	int rc;
@@ -291,6 +319,12 @@ int xtion_color_init(struct xtion_color *color, struct xtion *xtion)
 	rc = xtion_endpoint_init(&color->endp, xtion, &xtion_color_endpoint_config);
 	if(rc != 0)
 		return rc;
+
+	v4l2_ctrl_new_std_menu(&color->endp.ctrl_handler, &xtion_color_ctrl_ops,
+		V4L2_CID_POWER_LINE_FREQUENCY, V4L2_CID_POWER_LINE_FREQUENCY_60HZ,
+		0, V4L2_CID_POWER_LINE_FREQUENCY_DISABLED);
+
+	v4l2_ctrl_handler_setup(&color->endp.ctrl_handler);
 
 	return 0;
 }
