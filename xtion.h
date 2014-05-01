@@ -50,6 +50,8 @@ struct xtion_endpoint_config
 	u16 end_id;
 	unsigned int pixel_size;
 
+	u8 cmos_index;
+
 	u16 settings_base;
 	u16 endpoint_register;
 	u16 endpoint_mode;
@@ -63,11 +65,20 @@ struct xtion_endpoint_config
 	void (*handle_data)(struct xtion_endpoint* endp, const u8* data, unsigned int size);
 	void (*handle_end)(struct xtion_endpoint* endp);
 
-	int (*enumerate_sizes)(struct xtion_endpoint *endp, struct v4l2_frmsizeenum *framesize);
-	int (*enumerate_rates)(struct xtion_endpoint *endp, struct v4l2_frmivalenum *interval);
-	int (*lookup_size)(struct xtion_endpoint *endp, unsigned int width, unsigned int height);
-
 	int (*uncompress)(struct xtion_endpoint *endp, struct xtion_buffer *buf);
+
+	int (*setup_modes)(struct xtion_endpoint *endp);
+};
+
+/**
+ * @resolution Resolution code, see protocol.h
+ * @fps_bitset A set bit indicates that the corresponding FPS number is
+ *    available
+ */
+struct xtion_framesize
+{
+	unsigned int resolution;
+	u64 fps_bitset;
 };
 
 struct xtion_endpoint
@@ -79,6 +90,10 @@ struct xtion_endpoint
 	struct v4l2_ctrl_handler ctrl_handler;
 	struct v4l2_pix_format pix_fmt;
 	u16 fps;
+
+	/* Available image modes */
+	struct xtion_framesize framesizes[10];
+	unsigned int num_framesizes;
 
 	/* Image buffers */
 	struct vb2_queue vb2;

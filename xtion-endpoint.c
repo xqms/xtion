@@ -11,9 +11,62 @@
 
 #include "xtion-control.h"
 
-static const u16 intervals[] = {
-	5, 15, 30, 60
+struct framesize
+{
+	u16 width;
+	u16 height;
 };
+
+static const struct framesize frame_sizes[] = {
+	{  320,  240 },
+	{  640,  480 },
+	{ 1280, 1024 },
+	{ 1600, 1200 },
+	{  160,  120 },
+	{  176,  144 },
+	{  432,  240 },
+	{  352,  288 },
+	{  640,  360 },
+	{  864,  480 },
+	{  800,  448 },
+	{  800,  600 },
+	{ 1024,  576 },
+	{  960,  720 },
+	{ 1280,  720 },
+	{ 1280,  960 }
+};
+
+static const struct framesize *framesize_for_code(unsigned int code)
+{
+	if (code >= ARRAY_SIZE(frame_sizes))
+		return NULL;
+
+	return frame_sizes + code;
+}
+
+static int code_for_framesize(unsigned int width, unsigned int height)
+{
+	int i;
+	for (i = 0; i < ARRAY_SIZE(frame_sizes); ++i) {
+		if (frame_sizes[i].width == width && frame_sizes[i].height == height)
+			return i;
+	}
+
+	return -1;
+}
+
+static struct xtion_framesize *xtion_framesize_find(struct xtion_endpoint *endp,
+	unsigned int resolution)
+{
+	int i;
+
+	for (i = 0; i < endp->num_framesizes; ++i) {
+		if (endp->framesizes[i].resolution == resolution)
+			return endp->framesizes + i;
+	}
+
+	return 0;
+}
 
 /******************************************************************************/
 /*
@@ -298,6 +351,7 @@ int xtion_enable_streaming(struct xtion_endpoint *endp)
 	int i;
 	int rc;
 	int base;
+	int resolution;
 	struct xtion *xtion = endp->xtion;
 
 	if(!xtion->dev)
@@ -312,12 +366,17 @@ int xtion_enable_streaming(struct xtion_endpoint *endp)
 	xtion_set_param(xtion, XTION_P_REGISTRATION, 0);
 
 	xtion_set_param(xtion, endp->config->endpoint_register, XTION_VIDEO_STREAM_OFF);
-	xtion_set_param(xtion, base + XTION_CHANNEL_P_FORMAT, endp->config->image_format); // Uncompressed YUV422
-	xtion_set_param(xtion, base + XTION_CHANNEL_P_RESOLUTION, endp->config->lookup_size(endp, endp->pix_fmt.width, endp->pix_fmt.height)); // VGA
+	xtion_set_param(xtion, base + XTION_CHANNEL_P_FORMAT, endp->config->image_format);
+
+	resolution = code_for_framesize(endp->pix_fmt.width, endp->pix_fmt.height);
+	if (WARN_ON(resolution < 0))
+		resolution = 0;
+
+	xtion_set_param(xtion, base + XTION_CHANNEL_P_RESOLUTION, resolution);
 	xtion_set_param(xtion, base + XTION_CHANNEL_P_FPS, endp->fps);
 	xtion_set_param(xtion, endp->config->endpoint_register, endp->config->endpoint_mode);
 
-	xtion_set_param(xtion, XTION_P_FRAME_SYNC, 1);
+// 	xtion_set_param(xtion, XTION_P_FRAME_SYNC, 1);
 	xtion_set_param(xtion, XTION_P_REGISTRATION, 1);
 
 	mutex_unlock(&xtion->control_mutex);
@@ -426,6 +485,7 @@ static int xtion_vidioc_try_fmt(struct file *fp, void *priv, struct v4l2_format 
 {
 	int framesize_code;
 	struct xtion_endpoint *endp = video_drvdata(fp);
+	struct xtion_framesize *size = 0;
 
 	struct v4l2_pix_format* pix = &f->fmt.pix;
 
@@ -434,8 +494,12 @@ static int xtion_vidioc_try_fmt(struct file *fp, void *priv, struct v4l2_format 
 
 	pix->pixelformat = endp->pix_fmt.pixelformat;
 
-	framesize_code = endp->config->lookup_size(endp, pix->width, pix->height);
-	if(framesize_code < 0) {
+	framesize_code = code_for_framesize(pix->width, pix->height);
+	if (framesize_code >= 0) {
+		size = xtion_framesize_find(endp, framesize_code);
+	}
+
+	if (!size) {
 		pix->width = endp->pix_fmt.width;
 		pix->height = endp->pix_fmt.height;
 	}
@@ -492,23 +556,57 @@ static int xtion_vidioc_enum_fmt(struct file *fp, void *priv, struct v4l2_fmtdes
 static int xtion_vidioc_enum_framesizes(struct file *fp, void *priv, struct v4l2_frmsizeenum *frms)
 {
 	struct xtion_endpoint *endp = video_drvdata(fp);
+	const struct framesize *size;
 
 	if(frms->pixel_format != endp->config->pix_fmt)
 		return -EINVAL;
 
-	return endp->config->enumerate_sizes(endp, frms);
+	if(frms->index >= endp->num_framesizes)
+		return -EINVAL;
+
+	size = framesize_for_code(endp->framesizes[frms->index].resolution);
+
+	frms->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+	frms->discrete.width = size->width;
+	frms->discrete.height = size->height;
+
+	return 0;
 }
 
 static int xtion_vidioc_enum_intervals(struct file *fp, void *priv, struct v4l2_frmivalenum *ival)
 {
-	if(ival->index >= ARRAY_SIZE(intervals))
+	struct xtion_endpoint *endp = video_drvdata(fp);
+	struct xtion_framesize *size;
+	int resolution = code_for_framesize(ival->width, ival->height);
+	int i;
+	int cnt = ival->index;
+
+	if (resolution < 0)
+		return -EINVAL;
+
+	if (ival->pixel_format != endp->config->pix_fmt)
+		return -EINVAL;
+
+	size = xtion_framesize_find(endp, resolution);
+	if (!size)
 		return -EINVAL;
 
 	ival->type = V4L2_FRMIVAL_TYPE_DISCRETE;
 	ival->discrete.numerator = 1;
-	ival->discrete.denominator = intervals[ival->index];
 
-	return 0;
+	dev_info(&endp->xtion->dev->dev, "query fps bitset: 0x%llX\n", size->fps_bitset);
+	for (i = 0; i < 64; ++i) {
+		if (size->fps_bitset & (1ULL << i)) {
+			dev_info(&endp->xtion->dev->dev, "found fps: %d\n", i);
+			if (cnt == 0) {
+				ival->discrete.denominator = i;
+				return 0;
+			}
+			cnt--;
+		}
+	}
+
+	return -EINVAL;
 }
 
 static int xtion_vidioc_g_parm(struct file *fp, void *priv, struct v4l2_streamparm *parm)
@@ -529,12 +627,15 @@ static int xtion_vidioc_g_parm(struct file *fp, void *priv, struct v4l2_streampa
 static int xtion_vidioc_s_parm(struct file *fp, void *priv, struct v4l2_streamparm *parm)
 {
 	struct xtion_endpoint *endp = video_drvdata(fp);
+	struct xtion_framesize *size;
+	int resolution;
 	int rc = 0;
-	int closest = 0;
-	int closest_diff = 1000;
 	int i;
 
 	if(parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
+
+	if (parm->parm.capture.timeperframe.numerator != 1)
 		return -EINVAL;
 
 	rc = mutex_lock_interruptible(&endp->vb2_lock);
@@ -548,16 +649,31 @@ static int xtion_vidioc_s_parm(struct file *fp, void *priv, struct v4l2_streampa
 
 	endp->fps = parm->parm.capture.timeperframe.denominator;
 
-	for(i = 0; i < ARRAY_SIZE(intervals); ++i) {
-		if(abs((int)intervals[i] - endp->fps) < closest_diff) {
-			closest_diff = abs((int)intervals[i] - endp->fps);
-			closest = intervals[i];
-		}
+	resolution = code_for_framesize(endp->pix_fmt.width, endp->pix_fmt.height);
+	if (WARN_ON(resolution < 0)) {
+		rc = -EIO;
+		goto done;
 	}
 
-	endp->fps = closest;
-	parm->parm.capture.timeperframe.denominator = closest;
-// 	xtion_set_param(endp->xtion, XTION_P_IMAGE_FPS, endp->fps);
+	size = xtion_framesize_find(endp, resolution);
+	if (WARN_ON(!size)) {
+		rc = -EIO;
+		goto done;
+	}
+
+	/* Find next lower fps supported */
+	for (i = endp->fps; i > 0; --i) {
+		if (size->fps_bitset & (1 << i))
+			break;
+	}
+
+	if (i < 0) {
+		rc = -EINVAL;
+		goto done;
+	}
+
+	endp->fps = i;
+	parm->parm.capture.timeperframe.denominator = i;
 
 done:
 	mutex_unlock(&endp->vb2_lock);
@@ -687,6 +803,67 @@ ssize_t show_endpoint(struct device *dev, struct device_attribute *attr, char *b
 
 static DEVICE_ATTR(xtion_endpoint, S_IRUGO, show_endpoint, 0);
 
+static struct xtion_framesize *xtion_endpoint_find_or_create_framesize(
+	struct xtion_endpoint *endp, unsigned int resolution)
+{
+	struct xtion_framesize *size;
+
+	size = xtion_framesize_find(endp, resolution);
+	if (size)
+		return size;
+
+	if (endp->num_framesizes == ARRAY_SIZE(endp->framesizes))
+		return 0;
+
+	size = endp->framesizes + endp->num_framesizes;
+	size->resolution = resolution;
+	size->fps_bitset = 0;
+
+	endp->num_framesizes++;
+
+	return size;
+}
+
+static int xtion_endpoint_init_modes(struct xtion_endpoint *endp)
+{
+	int ret;
+	int i;
+	struct XtionCmosMode modes[20];
+
+	endp->num_framesizes = 0;
+
+	ret = xtion_get_cmos_presets(endp->xtion, endp->config->cmos_index,
+		modes, ARRAY_SIZE(modes));
+
+	if (ret < 0)
+		return ret;
+
+	dev_info(&endp->xtion->dev->dev, "[cmos %u] got %d modes\n", endp->config->cmos_index, ret);
+
+	for (i = 0; i < ret; ++i) {
+		struct xtion_framesize *size;
+
+		dev_info(&endp->xtion->dev->dev, "[cmos %u] mode %d: (format %u, resolution %u, fps %u)\n", endp->config->cmos_index, i, modes[i].format, modes[i].resolution, modes[i].fps);
+
+		if (modes[i].format != endp->config->image_format)
+			continue;
+
+		if(modes[i].fps >= 64) {
+			dev_err(&endp->xtion->dev->dev, "Unsupported FPS number: %u\n", modes[i].fps);
+			continue;
+		}
+
+		size = xtion_endpoint_find_or_create_framesize(endp, modes[i].resolution);
+		if(!size)
+			return -ENOMEM;
+
+		size->fps_bitset |= (1ULL << modes[i].fps);
+		dev_info(&endp->xtion->dev->dev, "[cmos %u] fps bitset for res %d: 0x%llX\n", endp->config->cmos_index, modes[i].resolution, size->fps_bitset);
+	}
+
+	return 0;
+}
+
 int xtion_endpoint_init(struct xtion_endpoint* endp, struct xtion* xtion, const struct xtion_endpoint_config *config)
 {
 	struct v4l2_pix_format* pix_format;
@@ -756,6 +933,14 @@ int xtion_endpoint_init(struct xtion_endpoint* endp, struct xtion* xtion, const 
 	endp->packet_state = XTION_PS_MAGIC1;
 	endp->packet_off = 0;
 	endp->fps = 30;
+
+	if (config->setup_modes)
+		ret = config->setup_modes(endp);
+	else
+		ret = xtion_endpoint_init_modes(endp);
+
+	if (ret != 0)
+		goto error_unregister;
 
 	v4l2_ctrl_handler_init(&endp->ctrl_handler, 5);
 	endp->video.ctrl_handler = &endp->ctrl_handler;

@@ -139,27 +139,19 @@ static int depth_uncompress(struct xtion_endpoint *endp, struct xtion_buffer *bu
 	return 0;
 }
 
-static int depth_enumerate_sizes(struct xtion_endpoint *endp, struct v4l2_frmsizeenum *size)
+/* Depth channel is special: reported modes are for IR images. So override
+ * them with fixed modes. */
+static int depth_setup_modes(struct xtion_endpoint *endp)
 {
-	if(size->index >= ARRAY_SIZE(frame_sizes))
-		return -EINVAL;
+	endp->num_framesizes = 2;
 
-	size->type = V4L2_FRMSIZE_TYPE_DISCRETE;
-	size->discrete.width = frame_sizes[size->index].width;
-	size->discrete.height = frame_sizes[size->index].height;
+	endp->framesizes[0].resolution = 0;
+	endp->framesizes[0].fps_bitset = (1ULL << 30) | (1ULL << 60);
+
+	endp->framesizes[1].resolution = 1;
+	endp->framesizes[1].fps_bitset = (1ULL << 30);
 
 	return 0;
-}
-
-static int depth_lookup_size(struct xtion_endpoint *endp, unsigned int width, unsigned int height)
-{
-	int i;
-	for(i = 0; i < ARRAY_SIZE(frame_sizes); ++i) {
-		if(frame_sizes[i].width == width && frame_sizes[i].height == height)
-			return frame_sizes[i].code;
-	}
-
-	return -EINVAL;
 }
 
 static const struct xtion_endpoint_config xtion_depth_endpoint_config = {
@@ -172,6 +164,8 @@ static const struct xtion_endpoint_config xtion_depth_endpoint_config = {
 	.bulk_urb_size   = 20480 / 4,
 	.buffer_size     = sizeof(struct xtion_depth_buffer),
 
+	.cmos_index      = 1,
+
 	.settings_base   = XTION_P_DEPTH_BASE,
 	.endpoint_register = XTION_P_GENERAL_STREAM1_MODE,
 	.endpoint_mode     = XTION_VIDEO_STREAM_DEPTH,
@@ -180,9 +174,8 @@ static const struct xtion_endpoint_config xtion_depth_endpoint_config = {
 	.handle_start    = depth_start,
 	.handle_data     = depth_data,
 	.handle_end      = depth_end,
-	.enumerate_sizes = depth_enumerate_sizes,
-	.lookup_size     = depth_lookup_size,
-	.uncompress      = depth_uncompress
+	.uncompress      = depth_uncompress,
+	.setup_modes     = depth_setup_modes
 };
 
 int xtion_depth_init(struct xtion_depth *depth, struct xtion *xtion)

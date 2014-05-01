@@ -180,6 +180,42 @@ int xtion_read_serial_number(struct xtion *xtion)
 	return 0;
 }
 
+int xtion_get_cmos_presets(struct xtion *xtion, unsigned int cmos, struct XtionCmosMode *modes, unsigned int num_modes)
+{
+	u8 response_buffer[sizeof(struct XtionReplyHeader) + 20 * 32];
+	u16 response_size = sizeof(response_buffer);
+	struct XtionGetCmosModesRequest req;
+	int ret;
+	struct XtionReplyHeader* reply = (struct XtionReplyHeader*)response_buffer;
+	unsigned int size;
+
+	req.header.magic = XTION_MAGIC_HOST;
+	req.header.size = 2;
+	req.header.opcode = XTION_OPCODE_GET_CMOS_PRESETS;
+	req.header.id = 1;
+	req.cmos = cmos;
+
+	ret = xtion_control(xtion, (u8*)&req, sizeof(req), response_buffer, &response_size);
+
+	if(ret < 0) {
+		dev_err(&xtion->dev->dev, "Could not query CMOS presets: %d\n", ret);
+		return ret;
+	}
+
+	if(response_size < sizeof(struct XtionReplyHeader) || reply->header.magic != XTION_MAGIC_DEV) {
+		dev_err(&xtion->dev->dev, "Invalid response (size %d, magic 0x%X)\n", response_size, reply->header.magic);
+		return -EIO;
+	}
+
+	size = response_size - sizeof(struct XtionReplyHeader);
+	size = size / sizeof(struct XtionCmosMode);
+	size = min(num_modes, size);
+
+	memcpy(modes, response_buffer + sizeof(struct XtionReplyHeader), size * sizeof(struct XtionCmosMode));
+
+	return size;
+}
+
 int xtion_set_param(struct xtion *xtion, u16 parameter, u16 value)
 {
 	struct XtionSetParamRequest packet;

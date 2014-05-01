@@ -121,6 +121,19 @@ static int xtion_probe(struct usb_interface *interface, const struct usb_device_
 	dev_info(&xtion->dev->dev, "ID: %s\n", xtion->serial_number);
 	device_create_file(&interface->dev, &dev_attr_xtion_id);
 
+	/* Read CMOS presets for debugging */
+	{
+		struct XtionCmosMode modes[20];
+		int i;
+
+		ret = xtion_get_cmos_presets(xtion, 0, modes, ARRAY_SIZE(modes));
+		dev_info(&xtion->dev->dev, "got %d modes\n", ret);
+
+		for(i = 0; i < ret; ++i) {
+			dev_info(&xtion->dev->dev, " - mode: %u %u %u\n", modes[i].format, modes[i].resolution, modes[i].fps);
+		}
+	}
+
 	/* Setup v4l2 device */
 	ret = v4l2_device_register(&interface->dev, &xtion->v4l2_dev);
 	if(ret != 0)

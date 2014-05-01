@@ -14,6 +14,7 @@
 #define XTION_OPCODE_SET_PARAM 3
 #define XTION_OPCODE_SET_MODE 6
 #define XTION_OPCODE_GET_FIXED_PARAMS 4
+#define XTION_OPCODE_GET_CMOS_PRESETS 36
 #define XTION_OPCODE_GET_SERIAL_NUMBER 37
 
 
@@ -157,6 +158,19 @@ struct XtionSetModeRequest
 {
 	struct XtionHeader header;
 	u16 mode;
+} __attribute__((packed));
+
+struct XtionGetCmosModesRequest
+{
+	struct XtionHeader header;
+	u16 cmos;
+} __attribute__((packed));
+
+struct XtionCmosMode
+{
+	u16 format;
+	u16 resolution;
+	u16 fps;
 } __attribute__((packed));
 
 #endif

@@ -6,32 +6,6 @@
 #include "xtion-endpoint.h"
 #include "xtion-control.h"
 
-struct framesize
-{
-	unsigned int width;
-	unsigned int height;
-	u16 code;
-};
-
-static const struct framesize frame_sizes[] = {
-	{  320,  240,  0 },
-	{  640,  480,  1 },
-	{ 1280, 1024,  2 },
-	{ 1600, 1200,  3 },
-	{  160,  120,  4 },
-	{  176,  144,  5 },
-	{  432,  240,  6 },
-	{  352,  288,  7 },
-	{  640,  360,  8 },
-	{  864,  480,  9 },
-	{  800,  448, 10 },
-	{  800,  600, 11 },
-	{ 1024,  576, 12 },
-	{  960,  720, 13 },
-	{ 1280,  720, 14 },
-	{ 1280,  960, 15 }
-};
-
 static inline struct xtion_color *endp_color(struct xtion_endpoint *endp)
 { return container_of(endp, struct xtion_color, endp); }
 
@@ -239,29 +213,6 @@ static void color_end(struct xtion_endpoint *endp)
 	endp->active_buffer = 0;
 }
 
-static int color_enumerate_sizes(struct xtion_endpoint *endp, struct v4l2_frmsizeenum *size)
-{
-	if(size->index >= ARRAY_SIZE(frame_sizes))
-		return -EINVAL;
-
-	size->type = V4L2_FRMSIZE_TYPE_DISCRETE;
-	size->discrete.width = frame_sizes[size->index].width;
-	size->discrete.height = frame_sizes[size->index].height;
-
-	return 0;
-}
-
-static int color_lookup_size(struct xtion_endpoint *endp, unsigned int width, unsigned int height)
-{
-	int i;
-	for(i = 0; i < ARRAY_SIZE(frame_sizes); ++i) {
-		if(frame_sizes[i].width == width && frame_sizes[i].height == height)
-			return frame_sizes[i].code;
-	}
-
-	return -EINVAL;
-}
-
 const struct xtion_endpoint_config xtion_color_endpoint_config = {
 	.name            = "color",
 	.addr            = 0x82,
@@ -270,6 +221,8 @@ const struct xtion_endpoint_config xtion_color_endpoint_config = {
 	.pix_fmt         = V4L2_PIX_FMT_UYVY,
 	.pixel_size      = 2,
 	.buffer_size     = sizeof(struct xtion_buffer),
+
+	.cmos_index      = 0,
 
 	.settings_base   = XTION_P_IMAGE_BASE,
 	.endpoint_register = XTION_P_GENERAL_STREAM0_MODE,
@@ -281,8 +234,6 @@ const struct xtion_endpoint_config xtion_color_endpoint_config = {
 	.handle_start    = color_start,
 	.handle_data     = color_data,
 	.handle_end      = color_end,
-	.enumerate_sizes = color_enumerate_sizes,
-	.lookup_size     = color_lookup_size
 };
 
 static int xtion_color_s_ctrl(struct v4l2_ctrl *ctrl)
