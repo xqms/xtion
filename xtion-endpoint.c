@@ -594,10 +594,8 @@ static int xtion_vidioc_enum_intervals(struct file *fp, void *priv, struct v4l2_
 	ival->type = V4L2_FRMIVAL_TYPE_DISCRETE;
 	ival->discrete.numerator = 1;
 
-	dev_info(&endp->xtion->dev->dev, "query fps bitset: 0x%llX\n", size->fps_bitset);
 	for (i = 0; i < 64; ++i) {
 		if (size->fps_bitset & (1ULL << i)) {
-			dev_info(&endp->xtion->dev->dev, "found fps: %d\n", i);
 			if (cnt == 0) {
 				ival->discrete.denominator = i;
 				return 0;
@@ -838,12 +836,8 @@ static int xtion_endpoint_init_modes(struct xtion_endpoint *endp)
 	if (ret < 0)
 		return ret;
 
-	dev_info(&endp->xtion->dev->dev, "[cmos %u] got %d modes\n", endp->config->cmos_index, ret);
-
 	for (i = 0; i < ret; ++i) {
 		struct xtion_framesize *size;
-
-		dev_info(&endp->xtion->dev->dev, "[cmos %u] mode %d: (format %u, resolution %u, fps %u)\n", endp->config->cmos_index, i, modes[i].format, modes[i].resolution, modes[i].fps);
 
 		if (modes[i].format != endp->config->image_format)
 			continue;
@@ -858,7 +852,6 @@ static int xtion_endpoint_init_modes(struct xtion_endpoint *endp)
 			return -ENOMEM;
 
 		size->fps_bitset |= (1ULL << modes[i].fps);
-		dev_info(&endp->xtion->dev->dev, "[cmos %u] fps bitset for res %d: 0x%llX\n", endp->config->cmos_index, modes[i].resolution, size->fps_bitset);
 	}
 
 	return 0;
