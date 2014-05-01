@@ -3,6 +3,8 @@
 
 .section .text
 
+#if CONFIG_AS_AVX2
+
 .align 32
 xtion_depth_unpack_shuffle:
 
@@ -161,3 +163,5 @@ xtion_depth_unpack_AVX2:
 
 	vzeroall
 	ret
+
+#endif

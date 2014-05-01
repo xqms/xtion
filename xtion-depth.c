@@ -10,6 +10,8 @@
 /* defined in xtion-depth-accel.s */
 extern void xtion_depth_unpack_AVX2(const u8 *input, const u16 *lut, u16 *output, u32 size);
 
+void (*xtion_depth_unpack)(const u8 *input, const u16 *lut, u16 *output, u32 size);
+
 #define INPUT_ELEMENT_SIZE 11
 
 struct framesize
@@ -59,6 +61,30 @@ static void depth_start(struct xtion_endpoint* endp)
 	dbuf->frame_bytes = 0;
 }
 
+#define TAKE_BITS(inp, count, offset) (((inp) & (((1 << count)-1) << offset)) >> offset)
+static void xtion_depth_unpack_generic(const u8 *input, const u16 *lut, u16 *output, u32 size)
+{
+	unsigned int i, j;
+	for (i = 0; i < size; ++i) {
+		u16 unpacked[8] = {
+			(TAKE_BITS(input[0], 8, 0) << 3) | TAKE_BITS(input[1], 3, 5),
+			(TAKE_BITS(input[1], 5, 0) << 6) | TAKE_BITS(input[2], 6, 2),
+			(TAKE_BITS(input[2], 2, 0) << 9) | (TAKE_BITS(input[3], 8, 0) << 1) | TAKE_BITS(input[4], 1, 7),
+			(TAKE_BITS(input[4], 7, 0) << 4) | TAKE_BITS(input[5], 4, 4),
+			(TAKE_BITS(input[5], 4, 0) << 7) | TAKE_BITS(input[6], 7, 1),
+			(TAKE_BITS(input[6], 1, 0) << 10) | (TAKE_BITS(input[7], 8, 0) << 2) | TAKE_BITS(input[8], 2, 6),
+			(TAKE_BITS(input[8], 6, 0) << 5) | TAKE_BITS(input[9], 5, 3),
+			(TAKE_BITS(input[9], 3, 0) << 8) | TAKE_BITS(input[10], 8, 0)
+		};
+
+		for (j = 0; j < 8; ++j)
+			output[j] = lut[unpacked[j]];
+
+		input += 11;
+		output += 8;
+	}
+}
+
 static inline size_t depth_unpack(struct xtion_depth *depth, struct xtion_buffer *buf, const u8* src, size_t size)
 {
 	size_t num_elements = size / INPUT_ELEMENT_SIZE;
@@ -76,7 +102,7 @@ static inline size_t depth_unpack(struct xtion_depth *depth, struct xtion_buffer
 			return num_elements * INPUT_ELEMENT_SIZE;
 		}
 
-		xtion_depth_unpack_AVX2(src, depth->lut, (u16*)wptr, num_elements);
+		xtion_depth_unpack(src, depth->lut, (u16*)wptr, num_elements);
 		buf->pos += num_bytes;
 	}
 
@@ -181,6 +207,15 @@ static const struct xtion_endpoint_config xtion_depth_endpoint_config = {
 int xtion_depth_init(struct xtion_depth *depth, struct xtion *xtion)
 {
 	int rc;
+
+#if CONFIG_AS_AVX2
+	if (boot_cpu_has(X86_FEATURE_AVX2))
+		xtion_depth_unpack = xtion_depth_unpack_AVX2;
+	else
+#endif
+	{
+		xtion_depth_unpack = xtion_depth_unpack_generic;
+	}
 
 	rc = xtion_endpoint_init(&depth->endp, xtion, &xtion_depth_endpoint_config);
 	if(rc != 0)
