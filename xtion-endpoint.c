@@ -379,6 +379,8 @@ int xtion_enable_streaming(struct xtion_endpoint *endp)
 // 	xtion_set_param(xtion, XTION_P_FRAME_SYNC, 1);
 	xtion_set_param(xtion, XTION_P_REGISTRATION, 1);
 
+	v4l2_ctrl_handler_setup(&endp->ctrl_handler);
+
 	mutex_unlock(&xtion->control_mutex);
 
 	// Submit all URBs initially
