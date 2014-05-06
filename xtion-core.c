@@ -48,40 +48,19 @@ ssize_t show_id(struct device *dev, struct device_attribute *attr, char *buf)
 
 static DEVICE_ATTR(xtion_id, S_IRUGO, show_id, 0);
 
-static int xtion_probe(struct usb_interface *interface, const struct usb_device_id *id)
+static int xtion_setup(void *_xtion)
 {
-	struct usb_device *udev = interface_to_usbdev(interface);
-	struct xtion *xtion = NULL;
-	int ret = -ENOMEM;
+	struct xtion *xtion = _xtion;
+	struct usb_device *udev = xtion->dev;
+	int ret, tries;
 
-	/* We only care for the data interface (0) */
-	if(interface->altsetting->desc.bInterfaceNumber != 0)
-		return -ENODEV;
-
-	/* FIXME: Is there a better way to wait for Xtion init to finish? */
 	msleep(3000);
-
-	usb_reset_endpoint(udev, 0);
-
-	/* Allocate our driver structure and link it to the usb_device */
-	xtion = kzalloc(sizeof(struct xtion), GFP_KERNEL);
-	if(!xtion) {
-		dev_err(&interface->dev, "Out of memory\n");
-		goto error;
-	}
-
-	xtion->dev = usb_get_dev(udev);
-	xtion->flags = 0;
-
-	mutex_init(&xtion->control_mutex);
-
-	usb_set_intfdata(interface, xtion);
 
 	/* Switch to alternate setting 1 for isochronous transfers */
 	if(xtion->flags & XTION_FLAG_ISOC) {
-		ret = usb_set_interface(udev, 0, 1);
+		ret = usb_set_interface(xtion->dev, 0, 1);
 		if(ret != 0) {
-			dev_err(&interface->dev, "Could not switch to isochronous alternate setting: %d", ret);
+			dev_err(&xtion->interface->dev, "Could not switch to isochronous alternate setting: %d", ret);
 			goto error_release;
 		}
 	}
@@ -108,21 +87,31 @@ static int xtion_probe(struct usb_interface *interface, const struct usb_device_
 	/* Perform a power-on reset */
 	xtion_reset(xtion);
 
-	/* Read fixed parameters TODO: needed? */
-	ret = xtion_read_fixed_params(xtion);
-	if(ret != 0)
-		goto error_release;
+	msleep(200);
 
-	/* Read serial number and make it available through sysfs */
-	ret = xtion_read_serial_number(xtion);
-	if(ret != 0)
-		goto error_release;
+	for(tries = 0; tries < 10; ++tries) {
+		/* Read fixed parameters TODO: needed? */
+		ret = xtion_read_fixed_params(xtion);
+		if(ret != 0) {
+			msleep(50);
+			continue;
+		}
+
+		/* Read serial number and make it available through sysfs */
+		ret = xtion_read_serial_number(xtion);
+		if(ret != 0) {
+			msleep(50);
+			continue;
+		}
+
+		break;
+	}
 
 	dev_info(&xtion->dev->dev, "ID: %s\n", xtion->serial_number);
-	device_create_file(&interface->dev, &dev_attr_xtion_id);
+	device_create_file(&xtion->interface->dev, &dev_attr_xtion_id);
 
 	/* Setup v4l2 device */
-	ret = v4l2_device_register(&interface->dev, &xtion->v4l2_dev);
+	ret = v4l2_device_register(&xtion->interface->dev, &xtion->v4l2_dev);
 	if(ret != 0)
 		goto error_release;
 
@@ -136,15 +125,50 @@ static int xtion_probe(struct usb_interface *interface, const struct usb_device_
 		goto error_release_color;
 
 	return 0;
+
 error_release_color:
 	xtion_color_release(&xtion->color);
 error_unregister:
 	v4l2_device_unregister(&xtion->v4l2_dev);
 error_release:
 	device_remove_file(&udev->dev, &dev_attr_xtion_id);
-	usb_set_intfdata(interface, NULL);
-	usb_put_dev(xtion->dev);
+	usb_set_intfdata(xtion->interface, NULL);
+
+	return ret;
+}
+
+static int xtion_probe(struct usb_interface *interface, const struct usb_device_id *id)
+{
+	struct usb_device *udev = interface_to_usbdev(interface);
+	struct xtion *xtion = NULL;
+	int ret = -ENOMEM;
+
+	/* We only care for the data interface (0) */
+	if(interface->altsetting->desc.bInterfaceNumber != 0)
+		return -ENODEV;
+
+	/* Allocate our driver structure and link it to the usb_device */
+	xtion = kzalloc(sizeof(struct xtion), GFP_KERNEL);
+	if(!xtion) {
+		dev_err(&interface->dev, "Out of memory\n");
+		goto error;
+	}
+
+	xtion->dev = usb_get_dev(udev);
+	xtion->interface = interface;
+	xtion->flags = 0;
+
+	mutex_init(&xtion->control_mutex);
+
+	usb_set_intfdata(interface, xtion);
+
+	ret = xtion_setup(xtion);
+	if (ret != 0)
+		goto error;
+
+	return 0;
 error:
+	usb_put_dev(xtion->dev);
 	kfree(xtion);
 	return ret;
 }
@@ -172,10 +196,9 @@ static void xtion_disconnect(struct usb_interface *interface)
 
 	v4l2_device_unregister(&xtion->v4l2_dev);
 
-	usb_put_dev(xtion->dev);
-
 	mutex_destroy(&xtion->control_mutex);
 
+	usb_put_dev(xtion->dev);
 	kfree(xtion);
 }
 

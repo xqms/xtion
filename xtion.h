@@ -149,7 +149,8 @@ struct xtion_color
 
 struct xtion
 {
-	struct usb_device* dev;
+	struct usb_device *dev;
+	struct usb_interface *interface;
 	struct XtionVersion version;
 	struct XtionFixedParams fixed;
 	char serial_number[SERIAL_NUMBER_MAX_LEN+1];
