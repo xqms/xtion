@@ -26,7 +26,10 @@ the Video4Linux interface, e.g. most webcam apps. I recommend [guvcview][],
 since it allows you to play with the resolution/controls.
 
 The depth device creates unsigned 16-bit depth images, which most webcam
-applications cannot display. A ROS nodelet is in preparation, which will be
-a drop-in replacement for openni_camera.
+applications cannot display.
+
+A ROS nodelet driver for use with this kernel driver is also available:
+[xtion_grabber][].
 
 [guvcview]: http://sourceforge.net/projects/guvcview/
+[xtion_grabber]: https://github.com/xqms/xtion_grabber/
