@@ -733,15 +733,15 @@ static int xtion_vb2_prepare(struct vb2_buffer *vb)
 	return 0;
 }
 
-static int xtion_vb2_finish(struct vb2_buffer *vb)
+static void xtion_vb2_finish(struct vb2_buffer *vb)
 {
 	struct xtion_endpoint *endp = vb2_get_drv_priv(vb->vb2_queue);
 	struct xtion_buffer *buf = container_of(vb, struct xtion_buffer, vb);
 
 	if(!endp->config->uncompress)
-		return 0;
+		return;
 
-	return endp->config->uncompress(endp, buf);
+	endp->config->uncompress(endp, buf);
 }
 
 static void xtion_vb2_queue(struct vb2_buffer *vb)
@@ -889,7 +889,7 @@ int xtion_endpoint_init(struct xtion_endpoint* endp, struct xtion* xtion, const 
 	endp->vb2.buf_struct_size = config->buffer_size;
 	endp->vb2.ops = &xtion_vb2_ops;
 	endp->vb2.mem_ops = &vb2_vmalloc_memops;
-	endp->vb2.timestamp_type = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
+	endp->vb2.timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
 	endp->vb2.lock = &endp->vb2_lock;
 
 	ret = vb2_queue_init(&endp->vb2);
