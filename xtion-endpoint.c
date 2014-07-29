@@ -189,10 +189,7 @@ static void xtion_usb_irq_isoc(struct urb *urb)
 	/* process data */
 	for(i = 0; i < urb->number_of_packets; ++i) {
 		status = urb->iso_frame_desc[i].status;
-		if(status < 0 && status != -EPROTO) {
-			if(status == -EPROTO)
-				continue;
-
+		if(status != 0) {
 			dev_err(&endp->xtion->dev->dev, "Unknown packet status: %d\n", status);
 			continue;
 		}
@@ -204,13 +201,13 @@ static void xtion_usb_irq_isoc(struct urb *urb)
 	}
 
 	/* Reset urb buffers */
-	for (i = 0; i < urb->number_of_packets; i++) {
-		urb->iso_frame_desc[i].status = 0;
-		urb->iso_frame_desc[i].actual_length = 0;
-	}
-
-	urb->transfer_flags = 0;
-	urb->start_frame = usb_get_current_frame_number(endp->xtion->dev) + 1024;
+// 	for (i = 0; i < urb->number_of_packets; i++) {
+// 		urb->iso_frame_desc[i].status = 0;
+// 		urb->iso_frame_desc[i].actual_length = 0;
+// 	}
+//
+// 	urb->transfer_flags = 0;
+// 	urb->start_frame = usb_get_current_frame_number(endp->xtion->dev) + 1024;
 
 	rc = usb_submit_urb(urb, GFP_ATOMIC);
 	if(rc != 0)
@@ -309,30 +306,32 @@ static int xtion_usb_init(struct xtion_endpoint* endp)
 			return -ENOMEM;
 
 		endp->urbs[i] = urb;
-		endp->transfer_buffers[i] = kmalloc(XTION_URB_SIZE, GFP_KERNEL);
-
-		if(!endp->transfer_buffers[i])
-			goto free_buffers;
 
 		urb->dev = endp->xtion->dev;
 		urb->pipe = pipe;
-		urb->transfer_buffer = endp->transfer_buffers[i];
 		urb->context = endp;
 		urb->start_frame = 0;
 		urb->number_of_packets = num_isoc_packets;
 
 		if(endp->xtion->flags & XTION_FLAG_ISOC) {
+			endp->transfer_buffers[i] = kmalloc(num_isoc_packets * psize, GFP_KERNEL);
 			urb->transfer_flags = URB_ISO_ASAP;
 			urb->complete = xtion_usb_irq_isoc;
 			urb->interval = 1;
 			urb->transfer_buffer_length = XTION_URB_SIZE;
 		}
 		else {
+			endp->transfer_buffers[i] = kmalloc(XTION_URB_SIZE, GFP_KERNEL);
 			urb->transfer_flags = 0;
 			urb->complete = xtion_usb_irq_bulk;
 			urb->interval = 0;
 			urb->transfer_buffer_length = endp->config->bulk_urb_size;
 		}
+
+		urb->transfer_buffer = endp->transfer_buffers[i];
+
+		if(!endp->transfer_buffers[i])
+			goto free_buffers;
 
 		for(j = 0; j < urb->number_of_packets; ++j) {
 			urb->iso_frame_desc[j].offset = j * psize;
