@@ -4,6 +4,7 @@
 
 #include "xtion-depth.h"
 #include "xtion-endpoint.h"
+#include "xtion-control.h"
 
 #include "xtion-depth-lut.h"
 
@@ -13,6 +14,11 @@ extern void xtion_depth_unpack_AVX2(const u8 *input, const u16 *lut, u16 *output
 void (*xtion_depth_unpack)(const u8 *input, const u16 *lut, u16 *output, u32 size);
 
 #define INPUT_ELEMENT_SIZE 11
+
+enum XtionDepthControls
+{
+	XTION_DEPTH_CTRL_CLOSE_RANGE = V4L2_CID_USER_BASE,
+};
 
 struct framesize
 {
@@ -132,11 +138,14 @@ static void depth_end(struct xtion_endpoint *endp)
 	if(!buffer)
 		return;
 
+#if 0
 	if(vb2_is_streaming(&endp->xtion->color.endp.vb2)) {
 		/* Use timestamp & seq info from color frame */
 		buffer->vb.v4l2_buf.timestamp = endp->xtion->color.endp.packet_system_timestamp;
 		buffer->vb.v4l2_buf.sequence = endp->xtion->color.endp.frame_id;
-	} else {
+	} else
+#endif
+	{
 		buffer->vb.v4l2_buf.timestamp = endp->packet_system_timestamp;
 		buffer->vb.v4l2_buf.sequence = endp->frame_id;
 	}
@@ -204,6 +213,33 @@ static const struct xtion_endpoint_config xtion_depth_endpoint_config = {
 	.setup_modes     = depth_setup_modes
 };
 
+static int xtion_depth_s_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct xtion_endpoint* endp = container_of(ctrl->handler, struct xtion_endpoint, ctrl_handler);
+
+	switch(ctrl->id) {
+	case XTION_DEPTH_CTRL_CLOSE_RANGE:
+		return xtion_set_param(endp->xtion, XTION_P_CLOSE_RANGE, ctrl->val);
+	}
+
+	return -EINVAL;
+}
+
+static const struct v4l2_ctrl_ops xtion_depth_ctrl_ops = {
+	.s_ctrl = xtion_depth_s_ctrl,
+};
+
+static const struct v4l2_ctrl_config ctrl_close_range = {
+	.ops = &xtion_depth_ctrl_ops,
+	.id = XTION_DEPTH_CTRL_CLOSE_RANGE,
+	.name = "Close Range",
+	.type = V4L2_CTRL_TYPE_BOOLEAN,
+	.min = 0,
+	.max = 1,
+	.step = 1,
+	.def = 0,
+};
+
 int xtion_depth_init(struct xtion_depth *depth, struct xtion *xtion)
 {
 	int rc;
@@ -222,6 +258,10 @@ int xtion_depth_init(struct xtion_depth *depth, struct xtion *xtion)
 		return rc;
 
 	depth->lut = depth_lut;
+
+	v4l2_ctrl_new_custom(&depth->endp.ctrl_handler, &ctrl_close_range, NULL);
+
+	v4l2_ctrl_handler_setup(&depth->endp.ctrl_handler);
 
 	return 0;
 }
