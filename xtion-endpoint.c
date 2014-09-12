@@ -375,7 +375,7 @@ int xtion_enable_streaming(struct xtion_endpoint *endp)
 	xtion_set_param(xtion, base + XTION_CHANNEL_P_FPS, endp->fps);
 	xtion_set_param(xtion, endp->config->endpoint_register, endp->config->endpoint_mode);
 
-// 	xtion_set_param(xtion, XTION_P_FRAME_SYNC, 1);
+	xtion_set_param(xtion, XTION_P_FRAME_SYNC, 1);
 	xtion_set_param(xtion, XTION_P_REGISTRATION, 1);
 
 	v4l2_ctrl_handler_setup(&endp->ctrl_handler);

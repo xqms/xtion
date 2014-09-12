@@ -138,14 +138,11 @@ static void depth_end(struct xtion_endpoint *endp)
 	if(!buffer)
 		return;
 
-#if 0
 	if(vb2_is_streaming(&endp->xtion->color.endp.vb2)) {
 		/* Use timestamp & seq info from color frame */
 		buffer->vb.v4l2_buf.timestamp = endp->xtion->color.endp.packet_system_timestamp;
 		buffer->vb.v4l2_buf.sequence = endp->xtion->color.endp.frame_id;
-	} else
-#endif
-	{
+	} else {
 		buffer->vb.v4l2_buf.timestamp = endp->packet_system_timestamp;
 		buffer->vb.v4l2_buf.sequence = endp->frame_id;
 	}
