@@ -78,7 +78,7 @@ static int xtion_setup(void *_xtion)
 		xtion->version.fpga
 	);
 
-	if(xtion->version.major * 256 + xtion->version.minor < 7 * 256 + 5) {
+	if(xtion->version.major * 256 + xtion->version.minor < 5 * 256 + 7) {
 		dev_err(&xtion->dev->dev, "The firmware is too old. Please update it following the instructions at the ASUS support site.\n");
 		ret = -EIO;
 		goto error_release;

@@ -100,6 +100,17 @@ int xtion_read_version(struct xtion* xtion)
 
 	memcpy(&xtion->version, response_buffer + sizeof(struct XtionReplyHeader), sizeof(struct XtionVersion));
 
+	if(xtion->version.major >= 5) {
+		/*
+		 * Who comes up with this kind of crap?
+		 * It seems someone interpreted the build number as hex for
+		 * newer xtions, so reverse that transformation
+		 */
+		char buf[5];
+		snprintf(buf, sizeof(buf), "%x", xtion->version.build);
+		WARN_ON(kstrtou16(buf, 10, &xtion->version.build));
+	}
+
 	return 0;
 }
 

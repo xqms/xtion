@@ -74,8 +74,8 @@ struct XtionSensorReplyHeader
 
 struct XtionVersion
 {
-	u8 major;
 	u8 minor;
+	u8 major;
 	u16 build;
 	u32 chip;
 	u16 fpga;
