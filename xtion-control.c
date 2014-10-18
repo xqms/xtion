@@ -125,7 +125,7 @@ int xtion_read_fixed_params(struct xtion* xtion)
 	u8 *dest = (u8*)&xtion->fixed;
 
 	request.header.magic = XTION_MAGIC_HOST;
-	request.header.size = 0;
+	request.header.size = 1;
 	request.header.opcode = XTION_OPCODE_GET_FIXED_PARAMS;
 	request.header.id = 0;
 
