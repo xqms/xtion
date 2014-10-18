@@ -6,7 +6,7 @@ ASUS Xtion PRO LIVE structured light camera.
 
 Requirements:
 
-* An Xtion device with up-to-date firmware (has been tested with v8.5.34).
+* An Xtion device with up-to-date firmware (has been tested with v5.8.22).
   Firmware update is available from ASUS support site.
 
 Usage
