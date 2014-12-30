@@ -16,6 +16,7 @@
 #define XTION_OPCODE_GET_FIXED_PARAMS 4
 #define XTION_OPCODE_GET_CMOS_PRESETS 36
 #define XTION_OPCODE_GET_SERIAL_NUMBER 37
+#define XTION_OPCODE_GET_ALGORITHM_PARAMS 22 // might be 21 in the older FWs
 
 
 #define XTION_P_FRAME_SYNC 1
@@ -140,6 +141,19 @@ struct XtionFixedParams
 	u32 projector_dac_output_voltage;
 	u32 projector_dac_output_voltage2;
 	u32 tec_emitter_delay;
+} __attribute__((packed));
+
+struct XtionAlgorithmParams {
+	u16 const_shift;
+} __attribute__((packed));
+
+struct XtionAlgorithmParamsRequest {
+	struct XtionHeader header;
+	u16 param_id;
+	u16 format;
+	u16 resolution;
+	u16 fps;
+	u16 offset;
 } __attribute__((packed));
 
 struct XtionFixedParamRequest

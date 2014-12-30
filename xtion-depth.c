@@ -5,8 +5,7 @@
 #include "xtion-depth.h"
 #include "xtion-endpoint.h"
 #include "xtion-control.h"
-
-#include "xtion-depth-lut.h"
+#include "xtion-math-emu.h"
 
 /* defined in xtion-depth-accel.s */
 extern void xtion_depth_unpack_AVX2(const u8 *input, const u16 *lut, u16 *output, u32 size);
@@ -237,6 +236,55 @@ static const struct v4l2_ctrl_config ctrl_close_range = {
 	.def = 0,
 };
 
+void xtion_generate_lut(struct xtion *xtion, u16* plut[])
+{
+	uint32_t a;
+	uint16_t max_depth;
+	size_t shift;
+	int tmp1, tmp2, depth;
+
+	float32 dcmos_emitter_distance_f32, zero_plane_pixel_size_f32 ;
+	float32 aa, bb1, bb11, bb2, bb22, bb3;
+
+	*plut = (u16*)kzalloc((MAX_SHIFT_VALUE + 10) * sizeof(u16), GFP_KERNEL);
+
+	dcmos_emitter_distance_f32.float_ = xtion->fixed.dcmos_emitter_distance;
+	zero_plane_pixel_size_f32.float_ = xtion->fixed.reference_pixel_size;
+
+	a = 8 * PARAM_COEFF * SHIFT_SCALE * xtion->fixed.reference_distance;
+	aa.uint32_ = u2f(a);
+	mul_f32(&dcmos_emitter_distance_f32, &aa, &aa);
+
+	bb2.uint32_ = u2f(8 * PARAM_COEFF);
+	mul_f32(&dcmos_emitter_distance_f32, &bb2, &bb22);
+
+	tmp1 = PARAM_COEFF * (8 * xtion->algorithm_params.const_shift + 3);
+
+	max_depth = xtion_min(MAX_DEPTH_VALUE, DEPTH_MAX_CUTOFF);
+
+	for (shift = 1; shift < MAX_SHIFT_VALUE; shift++)
+	{
+		tmp2 = 8 * PIXEL_SIZE_FACTOR * shift;
+
+		if (tmp1 < tmp2)
+		{
+			bb1.uint32_ = u2f((uint32_t)(tmp2 - tmp1));
+			bb1.sign = 1;
+		}
+		else
+		{
+			bb1.uint32_ = u2f((uint32_t)(tmp1 - tmp2));
+		}
+
+		mul_f32(&zero_plane_pixel_size_f32, &bb1, &bb11);
+		add_f32(&bb11, &bb22, &bb3);
+		depth = div_f32(&aa, &bb3);
+
+		if (depth > DEPTH_MIN_CUTOFF && depth < max_depth)
+			(*plut)[shift] = (u16) depth;
+	}
+}
+
 int xtion_depth_init(struct xtion_depth *depth, struct xtion *xtion)
 {
 	int rc;
@@ -254,7 +302,7 @@ int xtion_depth_init(struct xtion_depth *depth, struct xtion *xtion)
 	if(rc != 0)
 		return rc;
 
-	depth->lut = depth_lut;
+	xtion_generate_lut(xtion, &depth->lut);
 
 	v4l2_ctrl_new_custom(&depth->endp.ctrl_handler, &ctrl_close_range, NULL);
 
@@ -266,5 +314,6 @@ int xtion_depth_init(struct xtion_depth *depth, struct xtion *xtion)
 void xtion_depth_release(struct xtion_depth *depth)
 {
 	xtion_endpoint_release(&depth->endp);
+	kfree(depth->lut);
 }
 

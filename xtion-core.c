@@ -23,7 +23,8 @@
 #include "xtion-depth.h"
 
 static struct usb_device_id id_table[] = {
-	{ USB_DEVICE(VENDOR_ID, PRODUCT_ID) },
+	{ USB_DEVICE(VENDOR_ID, PRODUCT_ID_ASUS) },
+	{ USB_DEVICE(VENDOR_ID, PRODUCT_ID_PRIMESENSE) },
 	{}
 };
 MODULE_DEVICE_TABLE(usb, id_table);
@@ -90,7 +91,7 @@ static int xtion_setup(void *_xtion)
 	msleep(200);
 
 	for(tries = 0; tries < 10; ++tries) {
-		/* Read fixed parameters TODO: needed? */
+		/* Read fixed parameters */
 		ret = xtion_read_fixed_params(xtion);
 		if(ret != 0) {
 			msleep(50);
@@ -99,6 +100,13 @@ static int xtion_setup(void *_xtion)
 
 		/* Read serial number and make it available through sysfs */
 		ret = xtion_read_serial_number(xtion);
+		if(ret != 0) {
+			msleep(50);
+			continue;
+		}
+
+    /* Read ConstShift parameter */
+    ret = xtion_read_algorithm_params(xtion);
 		if(ret != 0) {
 			msleep(50);
 			continue;

@@ -60,8 +60,8 @@ int xtion_control(struct xtion* xtion, u8 *src, u16 size, u8 *dst, u16 *dst_size
 		}
 
 		if(ret >= sizeof(struct XtionReplyHeader)
-		        && reply->header.magic == XTION_MAGIC_DEV
-		        && reply->header.id == header->id) {
+						&& reply->header.magic == XTION_MAGIC_DEV
+						&& reply->header.id == header->id) {
 			*dst_size = ret;
 			return 0;
 		}
@@ -114,6 +114,54 @@ int xtion_read_version(struct xtion* xtion)
 	return 0;
 }
 
+int xtion_read_algorithm_params(struct xtion* xtion)
+{
+	u8 response_buffer[sizeof(struct XtionReplyHeader) + sizeof(struct XtionAlgorithmParams)];
+	u16 response_size = sizeof(response_buffer);
+	struct XtionAlgorithmParamsRequest request;
+	u32 data_read = 0;
+	int ret;
+	struct XtionReplyHeader* reply = (struct XtionReplyHeader*)response_buffer;
+	u32 *dest = (u32*)&xtion->algorithm_params;
+
+	request.header.magic = XTION_MAGIC_HOST;
+	request.header.size = 5;
+	request.header.opcode = XTION_OPCODE_GET_ALGORITHM_PARAMS;
+	request.header.id = 0;
+
+	request.param_id = HOST_PROTOCOL_ALGORITHM_DEPTH_INFO;
+	request.format = HOST_PROTOCOL_ALGORITHM_FORMAT;
+	request.resolution = HOST_PROTOCOL_ALGORITHM_RESOLUTION;
+	request.fps = 30;
+
+	while(data_read < sizeof(struct XtionAlgorithmParams)) {
+		u32 data_size;
+		request.offset = data_read / sizeof(u16);
+
+		ret = xtion_control(xtion, (u8*)&request, sizeof(request), response_buffer, &response_size);
+
+		if(ret != 0) {
+			dev_err(&xtion->dev->dev, "Could not read algorithm params at addr %d: %d", data_read/4, ret);
+			return ret;
+		}
+
+		if(response_size < sizeof(struct XtionReplyHeader) || reply->header.magic != XTION_MAGIC_DEV) {
+			dev_err(&xtion->dev->dev, "Invalid response");
+			return -EIO;
+		}
+
+		data_size = response_size - sizeof(struct XtionReplyHeader);
+
+		if(data_size == 0)
+			break;
+
+		memcpy(dest + data_read, response_buffer + sizeof(struct XtionReplyHeader), data_size);
+		data_read += data_size;
+	}
+
+	return 0;
+}
+
 int xtion_read_fixed_params(struct xtion* xtion)
 {
 	u8 response_buffer[sizeof(struct XtionReplyHeader) + sizeof(struct XtionFixedParams)];
@@ -131,7 +179,6 @@ int xtion_read_fixed_params(struct xtion* xtion)
 
 	while(data_read < sizeof(struct XtionFixedParams)) {
 		u32 data_size;
-
 		request.addr = __cpu_to_le16(data_read / 4);
 
 		ret = xtion_control(xtion, (u8*)&request, sizeof(request), response_buffer, &response_size);
