@@ -124,9 +124,15 @@ static void xtion_usb_process(struct xtion_endpoint *endp, const u8 *data, unsig
 					endp->packet_pad_start = endp->packet_header.timestamp >> 16;
 					endp->packet_pad_end = endp->packet_header.timestamp & 0xFFFF;
 
-					/* save timestamp */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 1)
+					/* save timestamp (v4l2_get_timestamp not used for compatibility's sake) */
+					struct timespec ts;
+					ktime_get_ts(&ts);
+					endp->packet_system_timestamp.tv_sec = ts.tv_sec;
+					endp->packet_system_timestamp.tv_usec = ts.tv_nsec / NSEC_PER_USEC;
+#else
 					v4l2_get_timestamp(&endp->packet_system_timestamp);
-
+#endif
 					/* new frame id */
 					endp->frame_id++;
 
@@ -888,7 +894,11 @@ int xtion_endpoint_init(struct xtion_endpoint* endp, struct xtion* xtion, const 
 	endp->vb2.buf_struct_size = config->buffer_size;
 	endp->vb2.ops = &xtion_vb2_ops;
 	endp->vb2.mem_ops = &vb2_vmalloc_memops;
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(3, 14, 4)
+	endp->vb2.timestamp_type = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
+#else
 	endp->vb2.timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
+#endif
 	endp->vb2.lock = &endp->vb2_lock;
 
 	ret = vb2_queue_init(&endp->vb2);

@@ -18,8 +18,9 @@
 #define DRIVER_AUTHOR "Max Schwarz <max.schwarz@online.de>"
 #define DRIVER_DESC "ASUS xtion kernel driver"
 
-#define VENDOR_ID 0x1d27   /* ASUS */
-#define PRODUCT_ID 0x0601  /* xtion with new firmware */
+#define VENDOR_ID             0x1d27   /* ASUS */
+#define PRODUCT_ID_ASUS       0x0601 /* xtion with new firmware */
+#define PRODUCT_ID_PRIMESENSE 0x0609 /* PrimeSense with new firmware */
 
 #define SERIAL_NUMBER_MAX_LEN 31
 
@@ -130,7 +131,7 @@ struct xtion_depth
 	u8 temp_buffer[4096];
 	u16 temp_bytes;
 
-	const u16* lut;
+	u16* lut;
 };
 
 struct xtion_color
@@ -153,6 +154,7 @@ struct xtion
 	struct usb_interface *interface;
 	struct XtionVersion version;
 	struct XtionFixedParams fixed;
+  struct XtionAlgorithmParams algorithm_params;
 	char serial_number[SERIAL_NUMBER_MAX_LEN+1];
 	struct v4l2_device v4l2_dev;
 

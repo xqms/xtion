@@ -18,5 +18,9 @@ KDIR ?= /lib/modules/`uname -r`/build
 default:
 	$(MAKE) -C $(KDIR) M=$$PWD
 
+test:
+	gcc $(CFLAGS) xtion-math-emu-tests.c -o xtion-math-emu-tests
+	@./xtion-math-emu-tests
+
 endif
 
