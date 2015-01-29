@@ -23,10 +23,10 @@ modules:
 install: modules_install
 
 modules_install:
-	make -C $(KDIR) M=$PWD modules_install
+	make -C $(KDIR) M=$$PWD modules_install
 
 clean:
-	make -C $(KDIR) M=$(PWD) clean
+	make -C $(KDIR) M=$$PWD clean
 
 test:
 	gcc $(CFLAGS) xtion-math-emu-tests.c -o xtion-math-emu-tests
