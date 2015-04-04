@@ -6,7 +6,6 @@
 #define XTION_DEPTH_H
 
 #include "xtion.h"
-#include <asm/i387.h>
 
 // Defines from OpenNI2
 #define MAX_SHIFT_VALUE       2047
