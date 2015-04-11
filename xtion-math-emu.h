@@ -2,7 +2,6 @@
 #define XTION_MATH_EMU_H
 
 #include <linux/types.h>
-
 #define xtion_max(a, b) (a > b ? a: b)
 #define xtion_min(a, b) (a < b ? a: b)
 
@@ -78,8 +77,14 @@ int div_f32(float32* a, float32* b)
 	bb = (b->mantisa | 0x800000);
 	bb = bb << (shift - a->exp);
 
+#if defined(__arm__)
+	// ARM kernel modules do not support 64-bit by 64-bit divison without using emulation
+	// 32-bit seems to suffice (for most cases)
+	mantisa = (u32)aa / (u32)bb;
+#else
 	mantisa = aa / bb;
-	
+#endif
+
 	// rounding
 	//if (aa % bb > bb / 2)
 	//	mantisa += 1;
