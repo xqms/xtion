@@ -421,8 +421,13 @@ static void xtion_kill_urbs(struct xtion_endpoint *endp)
 			list_del(&buf->list);
 			vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
 	}
-	/* It's important to clear current buffer */
-	endp->active_buffer = 0;
+
+	/* The current buffer is not in the avail_bufs list, so release it
+	 * separately. */
+	if (endp->active_buffer) {
+		vb2_buffer_done(&endp->active_buffer->vb, VB2_BUF_STATE_ERROR);
+		endp->active_buffer = 0;
+	}
 	spin_unlock_irqrestore(&endp->buf_lock, flags);
 }
 
