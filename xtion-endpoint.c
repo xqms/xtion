@@ -780,11 +780,10 @@ static int xtion_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 	return xtion_enable_streaming(endp);
 }
 
-static int xtion_vb2_stop_streaming(struct vb2_queue *q)
+static void xtion_vb2_stop_streaming(struct vb2_queue *q)
 {
 	struct xtion_endpoint *endp = vb2_get_drv_priv(q);
-
-	return xtion_disable_streaming(endp);
+	xtion_disable_streaming(endp);
 }
 
 static const struct vb2_ops xtion_vb2_ops = {
