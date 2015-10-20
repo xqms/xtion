@@ -8,6 +8,7 @@
 #define XTION_H
 
 #include <linux/usb.h>
+#include <linux/workqueue.h>
 #include <media/v4l2-dev.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ctrls.h>
@@ -166,6 +167,8 @@ struct xtion
 	struct xtion_depth depth;
 
 	struct mutex control_mutex;
+
+	struct delayed_work init_work;
 };
 
 struct xtion_buffer

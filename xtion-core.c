@@ -55,7 +55,7 @@ static int xtion_setup(void *_xtion)
 	struct usb_device *udev = xtion->dev;
 	int ret, tries;
 
-	msleep(3000);
+	dev_info(&xtion->dev->dev, "xtion: setup...");
 
 	/* Switch to alternate setting 1 for isochronous transfers */
 	if(xtion->flags & XTION_FLAG_ISOC) {
@@ -145,11 +145,22 @@ error_release:
 	return ret;
 }
 
+static void xtion_setup_wq(struct work_struct* work)
+{
+	struct delayed_work* init_work = container_of(work, struct delayed_work, work);
+	struct xtion* xtion = container_of(init_work, struct xtion, init_work);
+	xtion_setup(xtion);
+
+	// TODO: Handle failure!
+}
+
 static int xtion_probe(struct usb_interface *interface, const struct usb_device_id *id)
 {
 	struct usb_device *udev = interface_to_usbdev(interface);
 	struct xtion *xtion = NULL;
 	int ret = -ENOMEM;
+
+	dev_info(&interface->dev, "xtion: probing...");
 
 	/* We only care for the data interface (0) */
 	if(interface->altsetting->desc.bInterfaceNumber != 0)
@@ -170,9 +181,12 @@ static int xtion_probe(struct usb_interface *interface, const struct usb_device_
 
 	usb_set_intfdata(interface, xtion);
 
-	ret = xtion_setup(xtion);
+	INIT_DELAYED_WORK(&xtion->init_work, xtion_setup_wq);
+	schedule_delayed_work(&xtion->init_work, 3 * HZ);
+
+/*	ret = xtion_setup(xtion);
 	if (ret != 0)
-		goto error;
+		goto error;*/
 
 	return 0;
 error:
@@ -184,6 +198,8 @@ error:
 static void xtion_disconnect(struct usb_interface *interface)
 {
 	struct xtion* xtion = usb_get_intfdata(interface);
+
+	cancel_delayed_work_sync(&xtion->init_work);
 
 	mutex_lock(&xtion->control_mutex);
 
