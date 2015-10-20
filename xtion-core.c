@@ -149,7 +149,8 @@ static void xtion_setup_wq(struct work_struct* work)
 {
 	struct delayed_work* init_work = container_of(work, struct delayed_work, work);
 	struct xtion* xtion = container_of(init_work, struct xtion, init_work);
-	xtion_setup(xtion);
+	if(xtion_setup(xtion) != 0)
+		dev_err(&xtion->dev->dev, "xtion_setup() failure! I cannot handle this correctly :-(");
 
 	// TODO: Handle failure!
 }
@@ -181,6 +182,7 @@ static int xtion_probe(struct usb_interface *interface, const struct usb_device_
 
 	usb_set_intfdata(interface, xtion);
 
+	dev_info(&interface->dev, "Scheduling setup function\n");
 	INIT_DELAYED_WORK(&xtion->init_work, xtion_setup_wq);
 	schedule_delayed_work(&xtion->init_work, 3 * HZ);
 
