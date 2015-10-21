@@ -53,28 +53,29 @@ static int xtion_setup(void *_xtion)
 {
 	struct xtion *xtion = _xtion;
 	struct usb_device *udev = xtion->dev;
-	int ret, tries;
+	int ret, tries = 0;
 
 	/* Read firmware version and check if it is recent enough */
 	ret = xtion_read_version(xtion);
-	if(ret == -ETIMEDOUT)
+	while(ret == -ETIMEDOUT && ++tries != 5)
 	{
 		/* Sleep and try again (happens on hotplug when xtion is booting) */
-		dev_info(&xtion->dev->dev, "xtion did not reply to version query, retrying...");
-		msleep(3000);
+		dev_info(&xtion->dev->dev, "xtion did not reply to version query, retrying...\n");
+		usb_reset_device(udev);
+		dev_info(&xtion->dev->dev, "xtion resetted, trying again...\n");
 
 		ret = xtion_read_version(xtion);
-		if(ret != 0) {
-			usb_reset_device(udev);
-			goto error_release;
-		}
+	}
+	if(ret != 0) {
+		usb_reset_device(udev);
+		goto error_release;
 	}
 
 	/* Switch to alternate setting 1 for isochronous transfers */
 	if(xtion->flags & XTION_FLAG_ISOC) {
 		ret = usb_set_interface(xtion->dev, 0, 1);
 		if(ret != 0) {
-			dev_err(&xtion->interface->dev, "Could not switch to isochronous alternate setting: %d", ret);
+			dev_err(&xtion->interface->dev, "Could not switch to isochronous alternate setting: %d\n", ret);
 			goto error_release;
 		}
 	}
