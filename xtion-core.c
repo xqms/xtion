@@ -55,7 +55,20 @@ static int xtion_setup(void *_xtion)
 	struct usb_device *udev = xtion->dev;
 	int ret, tries;
 
-	msleep(3000);
+	/* Read firmware version and check if it is recent enough */
+	ret = xtion_read_version(xtion);
+	if(ret == -ETIMEDOUT)
+	{
+		/* Sleep and try again (happens on hotplug when xtion is booting) */
+		dev_info(&xtion->dev->dev, "xtion did not reply to version query, retrying...");
+		msleep(3000);
+
+		ret = xtion_read_version(xtion);
+		if(ret != 0) {
+			usb_reset_device(udev);
+			goto error_release;
+		}
+	}
 
 	/* Switch to alternate setting 1 for isochronous transfers */
 	if(xtion->flags & XTION_FLAG_ISOC) {
@@ -64,13 +77,6 @@ static int xtion_setup(void *_xtion)
 			dev_err(&xtion->interface->dev, "Could not switch to isochronous alternate setting: %d", ret);
 			goto error_release;
 		}
-	}
-
-	/* Read firmware version and check if it is recent enough */
-	ret = xtion_read_version(xtion);
-	if(ret != 0) {
-		usb_reset_device(udev);
-		goto error_release;
 	}
 
 	dev_info(&xtion->dev->dev, "Found ASUS Xtion with firmware version %d.%d.%d, chip: 0x%X, fpga: %d\n",
