@@ -29,6 +29,16 @@ static struct usb_device_id id_table[] = {
 };
 MODULE_DEVICE_TABLE(usb, id_table);
 
+static int xtion_probe(struct usb_interface *interface, const struct usb_device_id *id);
+static void xtion_disconnect(struct usb_interface *interface);
+
+static struct usb_driver xtion_driver = {
+	.name       = "xtion",
+	.probe      = xtion_probe,
+	.disconnect = xtion_disconnect,
+	.id_table   = id_table
+};
+
 /******************************************************************************/
 /*
  * sysfs attributes
@@ -152,15 +162,45 @@ error_release:
 	return ret;
 }
 
+static void xtion_release_interfaces(struct usb_device *usb_dev,
+										int num_interfaces)
+{
+	struct usb_interface *cur_intf;
+	int i;
+
+	for (i = 0; i < num_interfaces; i++)
+		if ((cur_intf = usb_ifnum_to_if(usb_dev, i))) {
+				usb_set_intfdata(cur_intf, NULL);
+				usb_driver_release_interface(&xtion_driver, cur_intf);
+		}
+}
+
 static int xtion_probe(struct usb_interface *interface, const struct usb_device_id *id)
 {
 	struct usb_device *udev = interface_to_usbdev(interface);
 	struct xtion *xtion = NULL;
 	int ret = -ENOMEM;
+	int num_interfaces = udev->actconfig->desc.bNumInterfaces;
+	int i;
+	struct usb_interface *cur_intf;
 
 	/* We only care for the data interface (0) */
 	if(interface->altsetting->desc.bInterfaceNumber != 0)
 		return -ENODEV;
+
+	for (i = 1; i < num_interfaces; i++) {
+		cur_intf = usb_ifnum_to_if(udev, i);
+
+		if (cur_intf) {
+			ret = usb_driver_claim_interface(&xtion_driver, cur_intf, xtion);
+
+			if (ret < 0) {
+				dev_err(&interface->dev, "%s: failed to claim interface %2d (%d)!\n", __func__, i, ret);
+				xtion_release_interfaces(udev, i);
+				return ret;
+			}
+		}
+	}
 
 	/* Allocate our driver structure and link it to the usb_device */
 	xtion = kzalloc(sizeof(struct xtion), GFP_KERNEL);
@@ -183,6 +223,7 @@ static int xtion_probe(struct usb_interface *interface, const struct usb_device_
 
 	return 0;
 error:
+	xtion_release_interfaces(udev, num_interfaces);
 	usb_put_dev(xtion->dev);
 	kfree(xtion);
 	return ret;
@@ -192,11 +233,16 @@ static void xtion_disconnect(struct usb_interface *interface)
 {
 	struct xtion* xtion = usb_get_intfdata(interface);
 
+	if(!xtion)
+		return;
+
 	mutex_lock(&xtion->control_mutex);
 
 	xtion_endpoint_disconnect(&xtion->color.endp);
 	xtion_endpoint_disconnect(&xtion->depth.endp);
 
+	xtion_release_interfaces(xtion->dev, xtion->dev->actconfig->desc.bNumInterfaces);
+	usb_put_dev(xtion->dev);
 	xtion->dev = NULL;
 
 	device_remove_file(xtion->v4l2_dev.dev, &dev_attr_xtion_id);
@@ -213,17 +259,8 @@ static void xtion_disconnect(struct usb_interface *interface)
 
 	mutex_destroy(&xtion->control_mutex);
 
-	usb_put_dev(xtion->dev);
 	kfree(xtion);
 }
-
-
-static struct usb_driver xtion_driver = {
-	.name       = "xtion",
-	.probe      = xtion_probe,
-	.disconnect = xtion_disconnect,
-	.id_table   = id_table
-};
 
 static int __init xtion_init(void)
 {
