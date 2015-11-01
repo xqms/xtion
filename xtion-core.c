@@ -122,8 +122,8 @@ static int xtion_setup(void *_xtion)
 			continue;
 		}
 
-    /* Read ConstShift parameter */
-    ret = xtion_read_algorithm_params(xtion);
+		/* Read ConstShift parameter */
+		ret = xtion_read_algorithm_params(xtion);
 		if(ret != 0) {
 			msleep(50);
 			continue;
