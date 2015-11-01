@@ -65,6 +65,8 @@ static int xtion_setup(void *_xtion)
 	struct usb_device *udev = xtion->dev;
 	int ret, tries = 0;
 
+	msleep(3000);
+
 	/* Read firmware version and check if it is recent enough */
 	ret = xtion_read_version(xtion);
 	while(ret == -ETIMEDOUT && ++tries != 5)
