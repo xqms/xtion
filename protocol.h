@@ -11,6 +11,7 @@
 #define XTION_MAGIC_DEV 0x4252
 
 #define XTION_OPCODE_GET_VERSION 0
+#define XTION_OPCODE_GET_PARAM 2
 #define XTION_OPCODE_SET_PARAM 3
 #define XTION_OPCODE_SET_MODE 6
 #define XTION_OPCODE_GET_FIXED_PARAMS 4
@@ -36,7 +37,17 @@
 #define XTION_VIDEO_STREAM_COLOR     1
 #define XTION_VIDEO_STREAM_DEPTH     2
 
+#define XTION_P_IMAGE_AGC          15
 #define XTION_P_IMAGE_FLICKER      17
+#define XTION_P_IMAGE_SHARPNESS    76
+#define XTION_P_IMAGE_AUTO_WHITE_BALANCE_MODE 77
+#define XTION_P_IMAGE_COLOR_TEMPERATURE 78
+#define XTION_P_IMAGE_BACK_LIGHT_COMPENSATION 79
+#define XTION_P_IMAGE_AUTO_EXPOSURE_MODE 80
+#define XTION_P_IMAGE_EXPOSURE_BAR 81
+#define XTION_P_IMAGE_LOW_LIGHT_COMPENSATION_MODE 82
+
+#define XTION_P_DEPTH_CLOSE_RANGE 84
 
 #define XTION_IMG_FORMAT_BAYER     0
 #define XTION_IMG_FORMAT_YUV422    1
@@ -167,6 +178,12 @@ struct XtionSetParamRequest
 	struct XtionHeader header;
 	u16 param;
 	u16 value;
+} __attribute__((packed));
+
+struct XtionGetParamRequest
+{
+	struct XtionHeader header;
+	u16 param;
 } __attribute__((packed));
 
 struct XtionSetModeRequest

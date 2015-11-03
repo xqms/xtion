@@ -254,6 +254,14 @@ static int xtion_color_s_ctrl(struct v4l2_ctrl *ctrl)
 		}
 
 		break;
+	case V4L2_CID_AUTOGAIN:
+		return xtion_set_param(endp->xtion, XTION_P_IMAGE_AUTO_EXPOSURE_MODE, ctrl->val);
+	case V4L2_CID_GAIN:
+		return xtion_set_param(endp->xtion, XTION_P_IMAGE_AGC, ctrl->val);
+	case V4L2_CID_WHITE_BALANCE_TEMPERATURE:
+		return xtion_set_param(endp->xtion, XTION_P_IMAGE_COLOR_TEMPERATURE, ctrl->val);
+	case V4L2_CID_AUTO_WHITE_BALANCE:
+		return xtion_set_param(endp->xtion, XTION_P_IMAGE_AUTO_WHITE_BALANCE_MODE, ctrl->val);
 	}
 
 	return 0;
@@ -274,6 +282,26 @@ int xtion_color_init(struct xtion_color *color, struct xtion *xtion)
 	v4l2_ctrl_new_std_menu(&color->endp.ctrl_handler, &xtion_color_ctrl_ops,
 		V4L2_CID_POWER_LINE_FREQUENCY, V4L2_CID_POWER_LINE_FREQUENCY_60HZ,
 		0, V4L2_CID_POWER_LINE_FREQUENCY_DISABLED);
+
+	v4l2_ctrl_new_std(&color->endp.ctrl_handler, &xtion_color_ctrl_ops,
+		V4L2_CID_GAIN, 0, 1500, 1, 100
+	);
+
+	v4l2_ctrl_new_std(&color->endp.ctrl_handler, &xtion_color_ctrl_ops,
+		V4L2_CID_AUTOGAIN, 0, 1, 1, 1
+	);
+
+	v4l2_ctrl_new_std(&color->endp.ctrl_handler, &xtion_color_ctrl_ops,
+		V4L2_CID_WHITE_BALANCE_TEMPERATURE, 0, 15000, 1, 5000
+	);
+
+	v4l2_ctrl_new_std(&color->endp.ctrl_handler, &xtion_color_ctrl_ops,
+		V4L2_CID_AUTO_WHITE_BALANCE, 0, 1, 1, 1
+	);
+
+	if(color->endp.ctrl_handler.error) {
+		dev_err(&color->endp.xtion->dev->dev, "could not register ctrl: %d\n", color->endp.ctrl_handler.error);
+	}
 
 	v4l2_ctrl_handler_setup(&color->endp.ctrl_handler);
 

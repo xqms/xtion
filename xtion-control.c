@@ -309,6 +309,42 @@ int xtion_set_param(struct xtion *xtion, u16 parameter, u16 value)
 	return 0;
 }
 
+int xtion_get_param(struct xtion *xtion, u16 parameter, u16* value)
+{
+	struct XtionGetParamRequest packet;
+	u8 response_buffer[sizeof(struct XtionReplyHeader) + 2];
+	u16 response_size = sizeof(response_buffer);
+	struct XtionReplyHeader *reply = (struct XtionReplyHeader*)response_buffer;
+	int rc;
+
+	packet.header.magic = XTION_MAGIC_HOST;
+	packet.header.opcode = XTION_OPCODE_GET_PARAM;
+	packet.header.size = 2;
+
+	packet.param = parameter;
+
+	rc = xtion_control(xtion, (u8*)&packet, sizeof(packet), response_buffer, &response_size);
+	if(rc < 0) {
+		dev_err(&xtion->dev->dev, "Could not set parameter: %d\n", rc);
+		return rc;
+	}
+
+	if(response_size < sizeof(struct XtionReplyHeader) || reply->header.magic != XTION_MAGIC_DEV) {
+		dev_err(&xtion->dev->dev, "Invalid response (size %d, magic 0x%X)\n", response_size, reply->header.magic);
+		return -EIO;
+	}
+
+	if(reply->error != 0) {
+		dev_err(&xtion->dev->dev, "param error: %d\n", reply->error);
+	}
+
+	*value = *((u16*)(response_buffer + sizeof(struct XtionReplyHeader)));
+
+	dev_info(&xtion->dev->dev, "read param %d: %d\n", parameter, *value);
+
+	return 0;
+}
+
 int xtion_reset(struct xtion *xtion)
 {
 	struct XtionSetModeRequest packet;
