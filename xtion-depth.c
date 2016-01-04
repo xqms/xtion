@@ -194,7 +194,9 @@ static const struct xtion_endpoint_config xtion_depth_endpoint_config = {
 	.addr            = 0x81,
 	.start_id        = 0x7100,
 	.end_id          = 0x7500,
-	.pix_fmt         = v4l2_fourcc('Y', '1', '1', ' '), /* 11-bit greyscale */
+	.pix_fmt         = V4L2_PIX_FMT_Y16,
+	/* more accurate: v4l2_fourcc('Y', '1', '1', ' ') (11-bit greyscale, but non-standard) */
+
 	.pixel_size      = 2,
 	.bulk_urb_size   = 20480 / 4,
 	.buffer_size     = sizeof(struct xtion_depth_buffer),
