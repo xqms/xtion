@@ -128,6 +128,8 @@ static void depth_data(struct xtion_endpoint* endp, const u8* data, unsigned int
 		return;
 
 	bytes = min_t(size_t, size, sizeof(dbuf->frame_buffer) - dbuf->frame_bytes);
+	if(bytes != size)
+		dev_warn(&endp->xtion->dev->dev, "depth buf overflow!\n");
 
 	memcpy(dbuf->frame_buffer + dbuf->frame_bytes, data, bytes);
 	dbuf->frame_bytes += bytes;

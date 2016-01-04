@@ -178,7 +178,7 @@ struct xtion_buffer
 struct xtion_depth_buffer
 {
 	struct xtion_buffer xbuf;
-	u8 frame_buffer[640*480*11/9];
+	u8 frame_buffer[640*480*11/8];
 	size_t frame_bytes;
 };
 
