@@ -690,6 +690,35 @@ done:
 	return rc;
 }
 
+int xtion_vidioc_enum_input(struct file* fp, void *priv, struct v4l2_input* inp)
+{
+	if(inp->index != 0)
+		return -EINVAL;
+
+	strncpy(inp->name, "Cam", sizeof(inp->name));
+	inp->type = V4L2_INPUT_TYPE_CAMERA;
+	inp->audioset = 0;
+	inp->tuner = 0;
+	inp->std = V4L2_STD_UNKNOWN;
+	inp->status = 0;
+	inp->capabilities = 0;
+
+	return 0;
+}
+
+int xtion_vidioc_g_input(struct file* fp, void *priv, unsigned int *index)
+{
+	*index = 0;
+	return 0;
+}
+
+int xtion_vidioc_s_input(struct file* fp, void *priv, unsigned int index)
+{
+	if(index != 0)
+		return -EINVAL;
+	return 0;
+}
+
 static const struct v4l2_ioctl_ops xtion_ioctls = {
 	.vidioc_querycap            = xtion_vidioc_querycap,
 	.vidioc_g_fmt_vid_cap       = xtion_vidioc_g_fmt,
@@ -700,6 +729,9 @@ static const struct v4l2_ioctl_ops xtion_ioctls = {
 	.vidioc_enum_frameintervals = xtion_vidioc_enum_intervals,
 	.vidioc_g_parm              = xtion_vidioc_g_parm,
 	.vidioc_s_parm              = xtion_vidioc_s_parm,
+	.vidioc_enum_input          = xtion_vidioc_enum_input,
+	.vidioc_g_input             = xtion_vidioc_g_input,
+	.vidioc_s_input             = xtion_vidioc_s_input,
 
 	/* vb2 takes care of these */
 	.vidioc_reqbufs       = vb2_ioctl_reqbufs,
