@@ -195,7 +195,11 @@ static const struct xtion_endpoint_config xtion_depth_endpoint_config = {
 	.start_id        = 0x7100,
 	.end_id          = 0x7500,
 	.pix_fmt         = V4L2_PIX_FMT_Y16,
-	/* more accurate: v4l2_fourcc('Y', '1', '1', ' ') (11-bit greyscale, but non-standard) */
+	/*
+	 * it would be nice if we could specify "millimeters" here, but
+	 * 16-bit grayscale can be recorded with standard tools (e.g. ffmepg),
+	 * which is nice.
+	 */
 
 	.pixel_size      = 2,
 	.bulk_urb_size   = 20480 / 4,
