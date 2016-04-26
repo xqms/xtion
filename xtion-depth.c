@@ -53,8 +53,8 @@ static void depth_start(struct xtion_endpoint* endp)
 
 	dbuf = depth_buf(endp->active_buffer);
 
-	vaddr = vb2_plane_vaddr(&dbuf->xbuf.vb, 0);
-	length = vb2_plane_size(&dbuf->xbuf.vb, 0);
+	vaddr = vb2_plane_vaddr(&dbuf->xbuf.vb.vb2_buf, 0);
+	length = vb2_plane_size(&dbuf->xbuf.vb.vb2_buf, 0);
 	if(!vaddr)
 		return;
 
@@ -95,7 +95,7 @@ static void xtion_depth_unpack_generic(const u8 *input, const u16 *lut, u16 *out
 static inline size_t depth_unpack(struct xtion_depth *depth, struct xtion_buffer *buf, const u8* src, size_t size)
 {
 	size_t num_elements = size / INPUT_ELEMENT_SIZE;
-	u8* vaddr = vb2_plane_vaddr(&buf->vb, 0);
+	u8* vaddr = vb2_plane_vaddr(&buf->vb.vb2_buf, 0);
 	u8* wptr = vaddr + buf->pos;
 	size_t num_bytes;
 
@@ -104,7 +104,7 @@ static inline size_t depth_unpack(struct xtion_depth *depth, struct xtion_buffer
 
 	if(num_elements != 0) {
 		num_bytes = num_elements * 8 * sizeof(u16);
-		if(buf->pos + num_bytes > vb2_plane_size(&buf->vb, 0)) {
+		if(buf->pos + num_bytes > vb2_plane_size(&buf->vb.vb2_buf, 0)) {
 			dev_err(&depth->endp.xtion->dev->dev, "depth buffer overflow: %lu\n", buf->pos + num_bytes);
 			return num_elements * INPUT_ELEMENT_SIZE;
 		}
@@ -143,14 +143,14 @@ static void depth_end(struct xtion_endpoint *endp)
 
 	if(vb2_is_streaming(&endp->xtion->color.endp.vb2)) {
 		/* Use timestamp & seq info from color frame */
-		buffer->vb.v4l2_buf.timestamp = endp->xtion->color.endp.packet_system_timestamp;
-		buffer->vb.v4l2_buf.sequence = endp->xtion->color.endp.frame_id;
+		buffer->vb.timestamp = endp->xtion->color.endp.packet_system_timestamp;
+		buffer->vb.sequence = endp->xtion->color.endp.frame_id;
 	} else {
-		buffer->vb.v4l2_buf.timestamp = endp->packet_system_timestamp;
-		buffer->vb.v4l2_buf.sequence = endp->frame_id;
+		buffer->vb.timestamp = endp->packet_system_timestamp;
+		buffer->vb.sequence = endp->frame_id;
 	}
 
-	vb2_buffer_done(&buffer->vb, VB2_BUF_STATE_DONE);
+	vb2_buffer_done(&buffer->vb.vb2_buf, VB2_BUF_STATE_DONE);
 	endp->active_buffer = 0;
 }
 
@@ -166,10 +166,10 @@ static int depth_uncompress(struct xtion_endpoint *endp, struct xtion_buffer *bu
 		dev_err(&endp->xtion->dev->dev, "depth buffer overflow (padding)\n");
 		return 1;
 	}
-	memset(vb2_plane_vaddr(&buf->vb, 0), 0, pad);
+	memset(vb2_plane_vaddr(&buf->vb.vb2_buf, 0), 0, pad);
 	buf->pos += pad;
-	buf->vb.v4l2_buf.bytesused = buf->pos;
-	vb2_set_plane_payload(&buf->vb, 0, buf->pos);
+	buf->vb.vb2_buf.planes[0].bytesused = buf->pos;
+	vb2_set_plane_payload(&buf->vb.vb2_buf, 0, buf->pos);
 
 	return 0;
 }

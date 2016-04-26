@@ -33,9 +33,9 @@ static void color_start(struct xtion_endpoint* endp)
 static unsigned int channel_map[4] = {0, 1, 2, 1}; // UYVY
 
 static inline void color_put_byte(struct xtion_color* color, struct xtion_buffer *buffer, u8 val) {
-	u8 *vaddr = vb2_plane_vaddr(&buffer->vb, 0);
+	u8 *vaddr = vb2_plane_vaddr(&buffer->vb.vb2_buf, 0);
 
-	if(buffer->pos >= vb2_plane_size(&buffer->vb, 0)) {
+	if(buffer->pos >= vb2_plane_size(&buffer->vb.vb2_buf, 0)) {
 		dev_warn(&color->endp.xtion->dev->dev, "buffer overflow");
 		return;
 	}
@@ -191,7 +191,7 @@ static void color_data(struct xtion_endpoint* endp, const u8* data, unsigned int
 	if(!endp->active_buffer)
 		return;
 
-	vaddr = vb2_plane_vaddr(&endp->active_buffer->vb, 0);
+	vaddr = vb2_plane_vaddr(&endp->active_buffer->vb.vb2_buf, 0);
 	if(!vaddr)
 		return;
 
@@ -204,12 +204,12 @@ static void color_end(struct xtion_endpoint *endp)
 	if(!endp->active_buffer)
 		return;
 
-	endp->active_buffer->vb.v4l2_buf.bytesused = endp->active_buffer->pos;
-	endp->active_buffer->vb.v4l2_buf.timestamp = endp->packet_system_timestamp;
-	endp->active_buffer->vb.v4l2_buf.sequence = endp->frame_id;
+	endp->active_buffer->vb.vb2_buf.planes[0].bytesused = endp->active_buffer->pos;
+	endp->active_buffer->vb.timestamp = endp->packet_system_timestamp;
+	endp->active_buffer->vb.sequence = endp->frame_id;
 
-	vb2_set_plane_payload(&endp->active_buffer->vb, 0, endp->active_buffer->pos);
-	vb2_buffer_done(&endp->active_buffer->vb, VB2_BUF_STATE_DONE);
+	vb2_set_plane_payload(&endp->active_buffer->vb.vb2_buf, 0, endp->active_buffer->pos);
+	vb2_buffer_done(&endp->active_buffer->vb.vb2_buf, VB2_BUF_STATE_DONE);
 	endp->active_buffer = 0;
 }
 

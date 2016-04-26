@@ -419,13 +419,13 @@ static void xtion_kill_urbs(struct xtion_endpoint *endp)
 			buf = list_first_entry(&endp->avail_bufs,
 					struct xtion_buffer, list);
 			list_del(&buf->list);
-			vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
+			vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
 	}
 
 	/* The current buffer is not in the avail_bufs list, so release it
 	 * separately. */
 	if (endp->active_buffer) {
-		vb2_buffer_done(&endp->active_buffer->vb, VB2_BUF_STATE_ERROR);
+		vb2_buffer_done(&endp->active_buffer->vb.vb2_buf, VB2_BUF_STATE_ERROR);
 		endp->active_buffer = 0;
 	}
 	spin_unlock_irqrestore(&endp->buf_lock, flags);
@@ -748,7 +748,7 @@ static const struct v4l2_ioctl_ops xtion_ioctls = {
  * videobuf2 operations
  */
 
-static int xtion_vb2_setup(struct vb2_queue *q, const struct v4l2_format *format,
+static int xtion_vb2_setup(struct vb2_queue *q, const void *parg,
                            unsigned int *nbuffers, unsigned int *nplanes,
                            unsigned int sizes[], void *alloc_ctxs[])
 {
@@ -778,7 +778,8 @@ static int xtion_vb2_prepare(struct vb2_buffer *vb)
 static void xtion_vb2_finish(struct vb2_buffer *vb)
 {
 	struct xtion_endpoint *endp = vb2_get_drv_priv(vb->vb2_queue);
-	struct xtion_buffer *buf = container_of(vb, struct xtion_buffer, vb);
+	struct vb2_v4l2_buffer *v4l2_buffer = to_vb2_v4l2_buffer(vb);
+	struct xtion_buffer *buf = container_of(v4l2_buffer, struct xtion_buffer, vb);
 
 	if(!endp->config->uncompress)
 		return;
@@ -790,11 +791,12 @@ static void xtion_vb2_queue(struct vb2_buffer *vb)
 {
 	struct xtion_endpoint *endp = vb2_get_drv_priv(vb->vb2_queue);
 	struct xtion *xtion = endp->xtion;
-	struct xtion_buffer *buf = container_of(vb, struct xtion_buffer, vb);
+	struct vb2_v4l2_buffer *v4l2_buffer = to_vb2_v4l2_buffer(vb);
+	struct xtion_buffer *buf = container_of(v4l2_buffer, struct xtion_buffer, vb);
 	unsigned long flags;
 
 	if(!xtion->dev) {
-		vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
+		vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
 		return;
 	}
 
