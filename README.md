@@ -31,5 +31,14 @@ applications cannot display.
 A ROS nodelet driver for use with this kernel driver is also available:
 [xtion_grabber][].
 
+Known Issues
+------------
+
+* The `snd_usb_audio` module might claim the USB interface first. If you
+  see messages like
+  `xtion 1-4:1.0: xtion_probe: failed to claim interface  1 (-16)!`,
+  you might want to blacklist the `snd_usb_audio` module.
+  For details, see issue #15.
+
 [guvcview]: http://sourceforge.net/projects/guvcview/
 [xtion_grabber]: https://github.com/xqms/xtion_grabber/
