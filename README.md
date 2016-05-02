@@ -38,7 +38,7 @@ Known Issues
   see messages like
   `xtion 1-4:1.0: xtion_probe: failed to claim interface  1 (-16)!`,
   you might want to blacklist the `snd_usb_audio` module.
-  For details, see issue #15.
+  For details, see issue https://github.com/xqms/xtion/issues/15.
 
 [guvcview]: http://sourceforge.net/projects/guvcview/
 [xtion_grabber]: https://github.com/xqms/xtion_grabber/
