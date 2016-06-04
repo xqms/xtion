@@ -357,6 +357,7 @@ int xtion_enable_streaming(struct xtion_endpoint *endp)
 	int rc;
 	int base;
 	struct xtion *xtion = endp->xtion;
+	int ret;
 
 	if(!xtion->dev)
 		return -ENODEV;
@@ -378,6 +379,15 @@ int xtion_enable_streaming(struct xtion_endpoint *endp)
 
 	xtion_set_param(xtion, base + XTION_CHANNEL_P_RESOLUTION, endp->resolution);
 	xtion_set_param(xtion, base + XTION_CHANNEL_P_FPS, endp->fps);
+
+	if(endp->config->enable_streaming)
+	{
+		ret = endp->config->enable_streaming(endp);
+
+		if(ret != 0)
+			return ret;
+	}
+
 	xtion_set_param(xtion, endp->config->endpoint_register, endp->config->endpoint_mode);
 
 	xtion_set_param(xtion, XTION_P_FRAME_SYNC, 1);

@@ -70,6 +70,8 @@ struct xtion_endpoint_config
 	int (*uncompress)(struct xtion_endpoint *endp, struct xtion_buffer *buf);
 
 	int (*setup_modes)(struct xtion_endpoint *endp);
+
+	int (*enable_streaming)(struct xtion_endpoint* endp);
 };
 
 /**
