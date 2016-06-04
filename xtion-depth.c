@@ -189,6 +189,17 @@ static int depth_setup_modes(struct xtion_endpoint *endp)
 	return 0;
 }
 
+static int depth_enable_streaming(struct xtion_endpoint* endp)
+{
+	/* for 320x240, we need to enable depth decimation */
+	if(endp->resolution == 0)
+		xtion_set_param(endp->xtion, XTION_P_DEPTH_DECIMATION, 1);
+	else
+		xtion_set_param(endp->xtion, XTION_P_DEPTH_DECIMATION, 0);
+
+	return 0;
+}
+
 static const struct xtion_endpoint_config xtion_depth_endpoint_config = {
 	.name            = "depth",
 	.addr            = 0x81,
@@ -215,8 +226,10 @@ static const struct xtion_endpoint_config xtion_depth_endpoint_config = {
 	.handle_start    = depth_start,
 	.handle_data     = depth_data,
 	.handle_end      = depth_end,
+
 	.uncompress      = depth_uncompress,
-	.setup_modes     = depth_setup_modes
+	.setup_modes     = depth_setup_modes,
+	.enable_streaming = depth_enable_streaming
 };
 
 static int xtion_depth_s_ctrl(struct v4l2_ctrl *ctrl)
