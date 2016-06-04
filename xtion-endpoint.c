@@ -668,8 +668,6 @@ static int xtion_vidioc_s_parm(struct file *fp, void *priv, struct v4l2_streampa
 		goto done;
 	}
 
-	endp->fps = parm->parm.capture.timeperframe.denominator;
-
 	resolution = code_for_framesize(endp->pix_fmt.width, endp->pix_fmt.height);
 	if (WARN_ON(resolution < 0)) {
 		rc = -EIO;
@@ -683,7 +681,8 @@ static int xtion_vidioc_s_parm(struct file *fp, void *priv, struct v4l2_streampa
 	}
 
 	/* Find next lower fps supported */
-	for (i = endp->fps; i > 0; --i) {
+	i = parm->parm.capture.timeperframe.denominator;
+	for (; i >= 0; --i) {
 		if (size->fps_bitset & (1 << i))
 			break;
 	}
