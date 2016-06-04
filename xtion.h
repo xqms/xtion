@@ -91,6 +91,7 @@ struct xtion_endpoint
 	struct video_device video;
 	struct v4l2_ctrl_handler ctrl_handler;
 	struct v4l2_pix_format pix_fmt;
+	int resolution;
 	u16 fps;
 
 	/* Available image modes */

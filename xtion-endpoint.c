@@ -356,7 +356,6 @@ int xtion_enable_streaming(struct xtion_endpoint *endp)
 	int i;
 	int rc;
 	int base;
-	int resolution;
 	struct xtion *xtion = endp->xtion;
 
 	if(!xtion->dev)
@@ -373,11 +372,11 @@ int xtion_enable_streaming(struct xtion_endpoint *endp)
 	xtion_set_param(xtion, endp->config->endpoint_register, XTION_VIDEO_STREAM_OFF);
 	xtion_set_param(xtion, base + XTION_CHANNEL_P_FORMAT, endp->config->image_format);
 
-	resolution = code_for_framesize(endp->pix_fmt.width, endp->pix_fmt.height);
-	if (WARN_ON(resolution < 0))
-		resolution = 0;
+	endp->resolution = code_for_framesize(endp->pix_fmt.width, endp->pix_fmt.height);
+	if (WARN_ON(endp->resolution < 0))
+		endp->resolution = 0;
 
-	xtion_set_param(xtion, base + XTION_CHANNEL_P_RESOLUTION, resolution);
+	xtion_set_param(xtion, base + XTION_CHANNEL_P_RESOLUTION, endp->resolution);
 	xtion_set_param(xtion, base + XTION_CHANNEL_P_FPS, endp->fps);
 	xtion_set_param(xtion, endp->config->endpoint_register, endp->config->endpoint_mode);
 
