@@ -391,6 +391,7 @@ int xtion_enable_streaming(struct xtion_endpoint *endp)
 
 	xtion_set_param(xtion, endp->config->endpoint_register, endp->config->endpoint_mode);
 
+	/* FIXME: This gives a harmless error if the RGB stream is not enabled... */
 	xtion_set_param(xtion, XTION_P_FRAME_SYNC, 1);
 	xtion_set_param(xtion, XTION_P_REGISTRATION, 1);
 
