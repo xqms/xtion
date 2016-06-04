@@ -301,7 +301,7 @@ int xtion_set_param(struct xtion *xtion, u16 parameter, u16 value)
 	}
 
 	if(reply->error != 0) {
-		dev_err(&xtion->dev->dev, "param error: %d\n", reply->error);
+		dev_err(&xtion->dev->dev, "param %d error: %d\n", parameter, reply->error);
 	}
 
 	dev_info(&xtion->dev->dev, "changed param %d to %d\n", parameter, value);
