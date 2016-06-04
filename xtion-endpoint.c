@@ -325,7 +325,6 @@ static int xtion_usb_init(struct xtion_endpoint* endp)
 			urb->transfer_flags = URB_ISO_ASAP;
 			urb->complete = xtion_usb_irq_isoc;
 			urb->interval = 1;
-			urb->transfer_buffer_length = XTION_URB_SIZE;
 		}
 		else {
 			endp->transfer_buffers[i] = kmalloc(XTION_URB_SIZE, GFP_KERNEL);
@@ -336,6 +335,7 @@ static int xtion_usb_init(struct xtion_endpoint* endp)
 		}
 
 		urb->transfer_buffer = endp->transfer_buffers[i];
+		urb->transfer_buffer_length = XTION_URB_SIZE;
 
 		if(!endp->transfer_buffers[i])
 			goto free_buffers;
