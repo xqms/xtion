@@ -112,12 +112,18 @@ static void xtion_usb_process(struct xtion_endpoint *endp, const u8 *data, unsig
 				/* header complete */
 
 				endp->packet_data_size = ((endp->packet_header.bufSize_high << 8) | endp->packet_header.bufSize_low) - sizeof(struct XtionSensorReplyHeader);
+
 				endp->packet_off = 0;
 				endp->packet_state = XTION_PS_DATA;
 
+				/* check packet ID */
+				if(endp->packet_header.packetID != ((endp->packet_id + 1) & 0xFFFF)) {
+					dev_warn(&endp->xtion->dev->dev, "Missed packets: %d -> %d\n", endp->packet_id, endp->packet_header.packetID);
+					endp->packet_corrupt = 1;
+				}
+
 				if(endp->packet_header.type == endp->config->start_id) {
 					/* start of a new frame */
-					endp->packet_id = endp->packet_header.packetID;
 					endp->packet_corrupt = 0;
 
 					/* padding information is returned in the timestamp field */
@@ -137,15 +143,9 @@ static void xtion_usb_process(struct xtion_endpoint *endp, const u8 *data, unsig
 					endp->frame_id++;
 
 					endp->config->handle_start(endp);
-				}  else {
-					/* continuation, check packet ID */
-					if(endp->packet_header.packetID != ((endp->packet_id + 1) & 0xFFFF)) {
-						dev_warn(&endp->xtion->dev->dev, "Missed packets: %d -> %d\n", endp->packet_id, endp->packet_header.packetID);
-						endp->packet_corrupt = 1;
-					}
-
-					endp->packet_id = endp->packet_header.packetID;
 				}
+
+				endp->packet_id = endp->packet_header.packetID;
 			}
 			break;
 		case XTION_PS_DATA:
@@ -165,6 +165,7 @@ static void xtion_usb_process(struct xtion_endpoint *endp, const u8 *data, unsig
 
 				endp->packet_state = XTION_PS_MAGIC1;
 			}
+
 			break;
 		}
 	}
